@@ -1,0 +1,41 @@
+import requests
+from bs4 import BeautifulSoup
+import logging
+
+# Set up logging to a file
+logging.basicConfig(filename='citations.log', level=logging.INFO, format='%(asctime)s - %(message)s')
+
+# Function to fetch citation details
+def fetch_citation(ticket_id):
+    url = f"https://ucsc.aimsparking.com/tickets/index.php?cmd=detail&ticketid={ticket_id:06d}"
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    if "Error: no ticket found." in response.text:
+        return None
+
+    # Extracting the citation details
+    issue_date = soup.find(text="Issue Date and Time:")
+    location = soup.find(text="Location:")
+    
+    if issue_date and location:
+        issue_date = issue_date.find_next('td').text.strip()
+        location = location.find_next('td').text.strip()
+        return ticket_id, issue_date, location
+    return None
+
+def main():
+    citations = []
+
+    for ticket_id in range(1000000):
+        citation = fetch_citation(ticket_id)
+        if citation:
+            citations.append(citation)
+            logging.info(f"Ticket ID: {citation[0]:06d}, Date: {citation[1]}, Location: {citation[2]}")
+
+    # Print all citations
+    for citation in citations:
+        print(f"Ticket ID: {citation[0]:06d}, Date: {citation[1]}, Location: {citation[2]}")
+
+if __name__ == "__main__":
+    main()
