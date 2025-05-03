@@ -1,82 +1,91 @@
 """
-scraper.py  –  Reads main tickets from main.txt first, then Firestore.
-               Keeps earlier logic: screenshots, skips duplicates, etc.
+scraper.py – Firestore first, then main.txt.
+• Prints clear console banners when switching sources
+• Silences Chromium noise (--disable-logging --log-level=3)
+• Waits up to 2 s for related-ticket links (no skips)
+• Prunes bad rows from main.txt
 """
 
 import concurrent.futures
 import datetime as dt
 import os
 import threading
-import time
 from pathlib import Path
 
 import firebase_admin
 from firebase_admin import credentials, firestore
 from google.api_core import exceptions as g_exceptions
-
 from selenium import webdriver
 from selenium.common.exceptions import (
     StaleElementReferenceException,
     TimeoutException,
+    WebDriverException,
 )
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 
-# ───────────────────── Debug helper ─────────────────────
 def dbg(msg: str):
     print(f"[{dt.datetime.now().isoformat(timespec='seconds')}] {msg}")
 
 
-# ───────────────────── Load main.txt ─────────────────────
-def load_main_file(path: str = "main.txt") -> list[dict]:
-    """
-    Read comma‑separated ticket,plate rows from main.txt.
-    Returns list[{"ticket_number": str, "plate_number": str}]
-    """
-    file_path = Path(path)
-    if not file_path.exists():
-        dbg(f"No {path} found – skipping file tickets")
-        return []
+# ───────────── main.txt helpers ─────────────
+MAIN_PATH = Path("main.txt")
 
+
+def load_main_file():
     rows = []
-    with file_path.open(encoding="utf-8") as f:
+    if not MAIN_PATH.exists():
+        dbg("No main.txt found – skipping file tickets")
+        return rows
+
+    with MAIN_PATH.open(encoding="utf-8") as f:
         for ln in f:
-            ln = ln.strip()
-            if not ln:
+            if not (ln := ln.strip()):
                 continue
             parts = [p.strip() for p in ln.split(",")]
             if len(parts) != 2:
-                dbg(f"Malformed line in {path} skipped: {ln!r}")
+                dbg(f"Malformed line in main.txt skipped: {ln!r}")
                 continue
-            ticket, plate = parts[0].upper(), parts[1]
-            rows.append({"ticket_number": ticket, "plate_number": plate})
-    dbg(f"Loaded {len(rows)} main tickets from {path}")
+            rows.append(
+                {
+                    "ticket_number": parts[0].upper(),
+                    "plate_number": parts[1],
+                    "raw_line": ln,
+                }
+            )
+    dbg(f"Loaded {len(rows)} main tickets from main.txt")
     return rows
 
 
-# ───────────────────── Firebase setup ─────────────────────
+def rewrite_main_file(valid_lines):
+    tmp = MAIN_PATH.with_suffix(".tmp")
+    with tmp.open("w", encoding="utf-8") as f:
+        for line in valid_lines:
+            f.write(line + "\n")
+    tmp.replace(MAIN_PATH)
+    dbg(f"Re‑wrote main.txt → kept {len(valid_lines)} valid rows")
+
+
+# ───────────── Firebase ─────────────
 dbg("Initialising Firebase…")
 firebase_admin.initialize_app(credentials.Certificate("cred.json"))
 db = firestore.client()
 dbg("Firebase ready ✔")
 
 
-def _fetch_docs(collection, limit):
-    ref = db.collection(collection)
-    if limit:
-        ref = ref.limit(limit)
+def _fetch_docs(col):
     return [
         {"plate_number": d.get("licensePlate"), "ticket_number": d.get("citationNumber")}
-        for d in ref.stream()
+        for d in db.collection(col).stream()
     ]
 
 
 def fetch_citations(collection="bruh", timeout=15):
     dbg(f"Fetching Firestore collection '{collection}' (timeout {timeout}s)…")
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-        fut = ex.submit(_fetch_docs, collection, None)
+        fut = ex.submit(_fetch_docs, collection)
         try:
             docs = fut.result(timeout=timeout)
             dbg(f"Fetched {len(docs)} docs ✔")
@@ -86,18 +95,21 @@ def fetch_citations(collection="bruh", timeout=15):
             return []
 
 
-# ───────────────────── Selenium setup ─────────────────────
+# ───────────── Selenium ─────────────
 dbg("Launching headless Chrome…")
 opts = webdriver.ChromeOptions()
 opts.add_argument("--headless")
 opts.add_argument("--disable-gpu")
+opts.add_argument("--disable-logging")
+opts.add_argument("--log-level=3")
 driver = webdriver.Chrome(options=opts)
 dbg("Chrome ready ✔")
 
-WAIT = WebDriverWait(driver, 12)
+WAIT = WebDriverWait(driver, 6)
+WAIT_RELATED = WebDriverWait(driver, 2)
 BASE_URL = "https://ucsc.aimsparking.com/tickets/"
 
-# ───────── screenshots (start after first nav) ─────────
+# silent screenshot thread
 os.makedirs("screenshots", exist_ok=True)
 _stop_snaps = threading.Event()
 _snap_started = [False]
@@ -105,12 +117,12 @@ _snap_started = [False]
 
 def _snap_worker():
     while not _stop_snaps.is_set():
-        fn = dt.datetime.now().strftime("screenshots/%Y%m%d_%H%M%S.png")
         try:
-            driver.save_screenshot(fn)
-            dbg(f"Screenshot → {fn}")
-        except Exception as e:
-            dbg(f"Screenshot error: {e}")
+            driver.save_screenshot(
+                dt.datetime.now().strftime("screenshots/%Y%m%d_%H%M%S.png")
+            )
+        except Exception:
+            pass
         _stop_snaps.wait(5)
 
 
@@ -120,37 +132,35 @@ def start_snaps():
         _snap_started[0] = True
 
 
-# ───────── scraped.txt helpers ─────────
+# ───────────── scraped.txt helpers ─────────────
 SCRAPED = Path("scraped.txt")
 
 
-def load_existing() -> set[str]:
+def load_existing():
     if not SCRAPED.exists():
         return set()
     with SCRAPED.open(encoding="utf-8") as f:
-        rows = {
-            line.lstrip('"').split(",")[0].upper() for line in f if line.strip()
-        }
-    dbg(f"Loaded {len(rows)} tickets already in scraped.txt")
-    return rows
+        return {ln.split(",")[0].lstrip('"').upper() for ln in f if ln.strip()}
 
 
 existing = load_existing()
+dbg(f"Loaded {len(existing)} tickets already in scraped.txt")
 
 
 def save_ticket(tid: str, loc: str, when: str):
-    if tid.upper() in existing:
+    up = tid.upper()
+    if up in existing:
         return
     date_part, time_part = when.split()[:2]
     m, d, y = map(int, date_part.split("/"))
-    time_clean = time_part.replace(":", "")
-    line = f'"{tid},{loc},{time_clean},{m}/{d}/{y}",\n'
+    line = f'"{up},{loc},{time_part.replace(":","")},{m}/{d}/{y}",\n'
     with SCRAPED.open("a", encoding="utf-8") as f:
         f.write(line)
-    existing.add(tid.upper())
+    existing.add(up)
     dbg(f"Saved → scraped.txt : {line.strip()}")
 
 
+# ───────────── scraping helpers ─────────────
 def extract_data():
     try:
         issue = driver.find_element(
@@ -164,28 +174,37 @@ def extract_data():
         return None, None
 
 
-# ───────── scraping helpers ─────────
 def _view_buttons():
     return driver.find_elements(By.XPATH, "//a[contains(@aria-label,'View ticket')]")
 
 
 def process_related(processed: set[str]):
+    # wait briefly for related list
+    try:
+        WAIT_RELATED.until(
+            EC.presence_of_element_located(
+                (By.XPATH, "//a[contains(@aria-label,'View ticket')]")
+            )
+        )
+    except TimeoutException:
+        return
+
     while True:
+        unseen = [
+            (
+                label.split("#")[1].strip().upper(),
+                btn,
+            )
+            for btn in _view_buttons()
+            if (label := btn.get_attribute("aria-label")) and "#" in label
+            if label.split("#")[1].strip().upper() not in processed
+            if label.split("#")[1].strip().upper() not in existing
+        ]
+        if not unseen:
+            break
+
+        tid, btn = unseen[0]
         try:
-            unseen = []
-            for btn in _view_buttons():
-                label = btn.get_attribute("aria-label")
-                if "#" not in label:
-                    continue
-                tid = label.split("#")[1].strip().upper()
-                if tid not in processed and tid not in existing:
-                    unseen.append((tid, btn))
-
-            if not unseen:
-                break
-
-            tid, btn = unseen[0]
-            dbg(f"→ Related ticket {tid}")
             driver.execute_script("arguments[0].click();", btn)
             WAIT.until(
                 EC.presence_of_element_located(
@@ -198,8 +217,8 @@ def process_related(processed: set[str]):
             if loc and when:
                 save_ticket(tid, loc, when)
                 processed.add(tid)
-        except (StaleElementReferenceException, TimeoutException):
-            pass
+        except (StaleElementReferenceException, TimeoutException, WebDriverException):
+            continue
         finally:
             try:
                 driver.back()
@@ -212,12 +231,10 @@ def process_related(processed: set[str]):
                 break
 
 
-def process_ticket(plate: str, ticket: str):
+def process_ticket(plate: str, ticket: str) -> bool:
     tid = ticket.upper()
     dbg(f"==== {tid} / {plate} ====")
-
     processed = {tid}
-
     try:
         driver.get(BASE_URL)
         start_snaps()
@@ -239,22 +256,31 @@ def process_ticket(plate: str, ticket: str):
             save_ticket(tid, loc, when)
 
         process_related(processed)
-
+        return True
     except Exception as exc:
         dbg(f"‼ Error processing {tid}: {exc}")
+        return False
 
 
-# ───────── main ─────────
+# ───────────── main workflow ─────────────
 if __name__ == "__main__":
-    # 1. main.txt tickets
-    file_tickets = load_main_file()
-    for row in file_tickets:
+    # 1️⃣  Firestore tickets
+    dbg("------ Starting Firestore tickets ------")
+    for row in fetch_citations():
         process_ticket(row["plate_number"], row["ticket_number"])
 
-    # 2. Firestore tickets (after file ones)
-    fb_tickets = fetch_citations()
-    for row in fb_tickets:
-        process_ticket(row["plate_number"], row["ticket_number"])
+    # 2️⃣  main.txt tickets
+    dbg("------ Starting main.txt tickets ------")
+    main_rows = load_main_file()
+    valid_lines = []
+    for row in main_rows:
+        if process_ticket(row["plate_number"], row["ticket_number"]):
+            valid_lines.append(row["raw_line"])
+        else:
+            dbg(f"Removed invalid entry from main.txt: {row['raw_line']}")
+
+    if MAIN_PATH.exists():
+        rewrite_main_file(valid_lines)
 
     dbg("Done – shutting down")
     _stop_snaps.set()
