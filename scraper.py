@@ -1,8 +1,18 @@
+"""
+scraper.py  –  Re‑opens the main ticket every run so new related tickets
+               are discovered, but never rewrites rows that already exist.
+"""
+
+import concurrent.futures
+import datetime as dt
+import os
+import threading
 import time
 from pathlib import Path
 
 import firebase_admin
 from firebase_admin import credentials, firestore
+from google.api_core import exceptions as g_exceptions
 
 from selenium import webdriver
 from selenium.common.exceptions import (
@@ -14,120 +24,153 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 
-# ───────────────────────── Firebase ──────────────────────────
-cred = credentials.Certificate("cred.json")  # service-account file
-firebase_admin.initialize_app(cred)
+def dbg(msg: str):
+    print(f"[{dt.datetime.now().isoformat(timespec='seconds')}] {msg}")
+
+
+# ───────────────────── Firebase ─────────────────────
+dbg("Initialising Firebase…")
+firebase_admin.initialize_app(credentials.Certificate("cred.json"))
 db = firestore.client()
+dbg("Firebase ready ✔")
 
 
-def fetch_citations_from_firestore(collection="bruh"):
-    """
-    Return a list of dicts with 'plate_number' and 'ticket_number'
-    pulled from the given Firestore collection.
-    """
+def _fetch_docs(col, limit):
+    ref = db.collection(col)
+    if limit:
+        ref = ref.limit(limit)
     return [
-        {
-            "plate_number": doc.to_dict().get("licensePlate"),
-            "ticket_number": doc.to_dict().get("citationNumber"),
-        }
-        for doc in db.collection(collection).stream()
+        {"plate_number": d.get("licensePlate"), "ticket_number": d.get("citationNumber")}
+        for d in ref.stream()
     ]
 
 
-# ───────────────────────── Selenium setup ──────────────────────────
-options = webdriver.ChromeOptions()
-options.add_argument("--headless")          # comment out to watch it run
-options.add_argument("--disable-gpu")
-driver = webdriver.Chrome(options=options)
+def fetch_citations(collection="bruh", timeout=15):
+    dbg(f"Fetching Firestore collection '{collection}' (timeout {timeout}s)…")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+        fut = ex.submit(_fetch_docs, collection, None)
+        try:
+            docs = fut.result(timeout=timeout)
+            dbg(f"Fetched {len(docs)} docs ✔")
+            return docs
+        except (concurrent.futures.TimeoutError, g_exceptions.GoogleAPICallError) as e:
+            dbg(f"‼ Firestore fetch failed: {e}")
+            return []
+
+
+# ───────────────────── Selenium ─────────────────────
+dbg("Launching headless Chrome…")
+opts = webdriver.ChromeOptions()
+opts.add_argument("--headless")
+opts.add_argument("--disable-gpu")
+driver = webdriver.Chrome(options=opts)
+dbg("Chrome ready ✔")
 
 WAIT = WebDriverWait(driver, 12)
 BASE_URL = "https://ucsc.aimsparking.com/tickets/"
 
+# ───────── screenshots (start after first nav) ─────────
+os.makedirs("screenshots", exist_ok=True)
+_stop_snaps = threading.Event()
+_snap_started = [False]
 
-# ───────────────────────── Utilities ──────────────────────────
-def save_valid_ticket(ticket_number: str, location: str, issue_date_time: str):
-    """Append one cleaned record to scraped.txt in the required format."""
+
+def _snap_worker():
+    while not _stop_snaps.is_set():
+        fn = dt.datetime.now().strftime("screenshots/%Y%m%d_%H%M%S.png")
+        try:
+            driver.save_screenshot(fn)
+            dbg(f"Screenshot → {fn}")
+        except Exception as e:
+            dbg(f"Screenshot error: {e}")
+        _stop_snaps.wait(5)
+
+
+def start_snaps():
+    if not _snap_started[0]:
+        threading.Thread(target=_snap_worker, daemon=True).start()
+        _snap_started[0] = True
+
+
+# ───────── scraped.txt helpers ─────────
+SCRAPED = Path("scraped.txt")
+
+
+def load_existing() -> set[str]:
+    if not SCRAPED.exists():
+        return set()
+    with SCRAPED.open(encoding="utf-8") as f:
+        rows = {line.lstrip('"').split(",")[0].upper() for line in f if line.strip()}
+    dbg(f"Loaded {len(rows)} tickets already in scraped.txt")
+    return rows
+
+
+existing = load_existing()
+
+
+def save_ticket(tid: str, loc: str, when: str):
+    if tid.upper() in existing:
+        return  # already have it
+    date_part, time_part = when.split()[:2]           # 'MM/DD/YYYY HH:MM'
+    m, d, y = map(int, date_part.split("/"))
+    time_clean = time_part.replace(":", "")           # 'HHMM'
+    line = f'"{tid},{loc},{time_clean},{m}/{d}/{y}",\n'
+    with SCRAPED.open("a", encoding="utf-8") as f:
+        f.write(line)
+    existing.add(tid.upper())
+    dbg(f"Saved → scraped.txt : {line.strip()}")
+
+
+def extract_data():
     try:
-        date_part, time_part = issue_date_time.split()[:2]            # 'MM/DD/YYYY HH:MM'
-        time_clean = time_part.replace(":", "")                       # 'HHMM'
-        m, d, y = map(int, date_part.split("/"))
-        line = f'"{ticket_number},{location},{time_clean},{m}/{d}/{y}",\n'
-        Path("scraped.txt").write_text("", encoding="utf-8") if not Path("scraped.txt").exists() else None
-        with open("scraped.txt", "a", encoding="utf-8") as f:
-            f.write(line)
-        print("Saved ticket to scraped.txt:", line.strip())
-    except Exception as exc:
-        print(f"Error saving ticket {ticket_number}: {exc}")
-
-
-def extract_ticket_data():
-    """Return (location, issue_date_time) or (None, None) on failure."""
-    try:
-        issue_date_time = (
-            driver.find_element(By.XPATH, "//p[strong[text()='Issue Date and Time:']]")
-            .text.replace("Issue Date and Time: ", "")
-        )
-        location = (
-            driver.find_element(By.XPATH, "//p[strong[text()='Location:']]")
-            .text.replace("Location: ", "")
-        )
-        return location, issue_date_time
+        issue = driver.find_element(
+            By.XPATH, "//p[strong[text()='Issue Date and Time:']]"
+        ).text.replace("Issue Date and Time: ", "")
+        loc = driver.find_element(
+            By.XPATH, "//p[strong[text()='Location:']]"
+        ).text.replace("Location: ", "")
+        return loc, issue
     except Exception:
         return None, None
 
 
-# ───────────────────────── Scraping helpers ──────────────────────────
-def _current_view_buttons():
-    """Return all <a> elements whose aria-label contains 'View ticket'."""
+# ───────── scraping helpers ─────────
+def _view_buttons():
     return driver.find_elements(By.XPATH, "//a[contains(@aria-label,'View ticket')]")
 
 
-def process_additional_tickets(processed: set):
-    """
-    Walk every 'View ticket' link on the page until no unseen tickets remain.
-    Uses *processed* set so no ticket is handled twice.
-    """
+def process_related(processed: set[str]):
     while True:
         try:
-            buttons = _current_view_buttons()
-            # Build a list of (ticket_number, button_element) pairs not yet handled
             unseen = []
-            for btn in buttons:
-                try:
-                    tid = (
-                        btn.get_attribute("aria-label").split("#")[1].strip().upper()
-                    )
-                except Exception:
+            for btn in _view_buttons():
+                label = btn.get_attribute("aria-label")
+                if "#" not in label:
                     continue
-                if tid not in processed:
+                tid = label.split("#")[1].strip().upper()
+                if tid not in processed and tid not in existing:
                     unseen.append((tid, btn))
 
             if not unseen:
-                break  # we're done
+                break
 
-            ticket_number, button = unseen[0]
-
-            # click safely via JavaScript (avoids intercept errors)
-            driver.execute_script("arguments[0].click();", button)
-
-            # wait for the panel that marks a ticket view
+            tid, btn = unseen[0]
+            dbg(f"→ Related ticket {tid}")
+            driver.execute_script("arguments[0].click();", btn)
             WAIT.until(
                 EC.presence_of_element_located(
                     (By.XPATH, "//h3[normalize-space()='Ticket Information']")
                 )
             )
+            start_snaps()
 
-            # scrape
-            location, issue_date_time = extract_ticket_data()
-            if location and issue_date_time:
-                save_valid_ticket(ticket_number, location, issue_date_time)
-                processed.add(ticket_number)
-
+            loc, when = extract_data()
+            if loc and when:
+                save_ticket(tid, loc, when)
+                processed.add(tid)
         except (StaleElementReferenceException, TimeoutException):
-            # page rebuilt underneath us → refresh list in next loop iteration
             pass
         finally:
-            # always return to the list page before the next cycle
             try:
                 driver.back()
                 WAIT.until(
@@ -136,23 +179,22 @@ def process_additional_tickets(processed: set):
                     )
                 )
             except TimeoutException:
-                break  # can't get back; leave the loop
+                break
 
 
-def process_ticket(plate_number: str, ticket_number: str):
-    """
-    Scrape the main ticket (plate+ticket) and all its related tickets.
-    """
-    processed = {ticket_number.upper()}  # seed with the main ticket so we skip its duplicate
+def process_ticket(plate: str, ticket: str):
+    tid = ticket.upper()
+    dbg(f"==== {tid} / {plate} ====")
+
+    processed = {tid}  # always seed with main ticket
 
     try:
         driver.get(BASE_URL)
+        start_snaps()
 
-        WAIT.until(EC.presence_of_element_located((By.ID, "plate_vin"))).send_keys(
-            plate_number
-        )
+        WAIT.until(EC.presence_of_element_located((By.ID, "plate_vin"))).send_keys(plate)
         WAIT.until(EC.presence_of_element_located((By.ID, "ticket_number"))).send_keys(
-            ticket_number
+            ticket
         )
         WAIT.until(EC.element_to_be_clickable((By.ID, "search_ticket"))).click()
 
@@ -162,27 +204,30 @@ def process_ticket(plate_number: str, ticket_number: str):
             )
         )
 
-        location, issue_date_time = extract_ticket_data()
-        if location and issue_date_time:
-            save_valid_ticket(ticket_number, location, issue_date_time)
+        # save main ticket only if new
+        loc, when = extract_data()
+        if loc and when:
+            save_ticket(tid, loc, when)
 
-        # now walk the “related” links
-        process_additional_tickets(processed)
+        process_related(processed)
 
     except Exception as exc:
-        print(f"Error processing ticket {ticket_number}: {exc}")
+        dbg(f"‼ Error processing {tid}: {exc}")
 
 
-# ───────────────────────── Main ──────────────────────────
+# ───────── main ─────────
 if __name__ == "__main__":
-    # wipe output each run
-    Path("scraped.txt").write_text("", encoding="utf-8")
+    tickets = fetch_citations()
+    if not tickets:
+        dbg("No Firestore tickets – exiting.")
+        driver.quit()
+        raise SystemExit(1)
 
-    citations = fetch_citations_from_firestore()
-    print(f"Loaded {len(citations)} Firestore records")
-
-    for row in citations:
+    dbg(f"Begin scrape loop ({len(tickets)} Firestore rows)")
+    for row in tickets:
         process_ticket(row["plate_number"], row["ticket_number"])
 
+    dbg("Done – shutting down")
+    _stop_snaps.set()
     driver.quit()
-    print("Closed WebDriver – done.")
+    dbg("Chrome closed ✔")
