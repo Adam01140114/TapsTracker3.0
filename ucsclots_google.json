@@ -1,0 +1,507 @@
+[
+  {
+    "name": "Parking Lot 101 Santa Cruz",
+    "lat": 36.9951142,
+    "lng": -122.0571824
+  },
+  {
+    "name": "Parking Lot 102 Santa Cruz",
+    "lat": 36.99740550000001,
+    "lng": -122.0555969
+  },
+  {
+    "name": "Parking Lot 103 Santa Cruz",
+    "lat": 36.9949906,
+    "lng": -122.0552532
+  },
+  {
+    "name": "Parking Lot 104 Santa Cruz",
+    "lat": 36.9910014,
+    "lng": -122.0530383
+  },
+  {
+    "name": "Parking Lot 106 Santa Cruz",
+    "lat": 36.9983043,
+    "lng": -122.0539247
+  },
+  {
+    "name": "Parking Lot 107 Santa Cruz",
+    "lat": 36.9979251,
+    "lng": -122.053208
+  },
+  {
+    "name": "Parking Lot 108 Santa Cruz",
+    "lat": 36.9975782,
+    "lng": -122.0528694
+  },
+  {
+    "name": "Parking Lot 109 Santa Cruz",
+    "lat": 36.9982315,
+    "lng": -122.0526854
+  },
+  {
+    "name": "Parking Lot 110 Santa Cruz",
+    "lat": 36.9982416,
+    "lng": -122.0516104
+  },
+  {
+    "name": "Parking Lot 111 Santa Cruz",
+    "lat": 37.0011036,
+    "lng": -122.0544011
+  },
+  {
+    "name": "Parking Lot 112 Santa Cruz",
+    "lat": 36.982864,
+    "lng": -122.059665
+  },
+  {
+    "name": "Parking Lot 113 Santa Cruz",
+    "lat": 36.9981862,
+    "lng": -122.0626035
+  },
+  {
+    "name": "Parking Lot 114 Santa Cruz",
+    "lat": 37.0001383,
+    "lng": -122.0589531
+  },
+  {
+    "name": "Parking Lot 115 Santa Cruz",
+    "lat": 36.9803541,
+    "lng": -122.0519273
+  },
+  {
+    "name": "Parking Lot 116 Santa Cruz",
+    "lat": 36.98101,
+    "lng": -122.051872
+  },
+  {
+    "name": "Parking Lot 119 Santa Cruz",
+    "lat": 36.999685,
+    "lng": -122.0517469
+  },
+  {
+    "name": "Parking Lot 120 Santa Cruz",
+    "lat": 36.9962993,
+    "lng": -122.0591676
+  },
+  {
+    "name": "Parking Lot 121 Santa Cruz",
+    "lat": 36.9910462,
+    "lng": -122.0531602
+  },
+  {
+    "name": "Parking Lot 124 Santa Cruz",
+    "lat": 36.99438689999999,
+    "lng": -122.0641388
+  },
+  {
+    "name": "Parking Lot 125 Santa Cruz",
+    "lat": 36.9938063,
+    "lng": -122.0647358
+  },
+  {
+    "name": "Parking Lot 126 Santa Cruz",
+    "lat": 36.9933961,
+    "lng": -122.061554
+  },
+  {
+    "name": "Parking Lot 127 Santa Cruz",
+    "lat": 36.9885555,
+    "lng": -122.0659006
+  },
+  {
+    "name": "Parking Lot 128 Santa Cruz",
+    "lat": 36.9991449,
+    "lng": -122.0582145
+  },
+  {
+    "name": "Parking Lot 130 Santa Cruz",
+    "lat": 36.9990766,
+    "lng": -122.0636772
+  },
+  {
+    "name": "Parking Lot 131 Santa Cruz",
+    "lat": 36.9911955,
+    "lng": -122.0677039
+  },
+  {
+    "name": "Parking Lot 133 Santa Cruz",
+    "lat": 36.9912085,
+    "lng": -122.0684344
+  },
+  {
+    "name": "Parking Lot 134 Santa Cruz",
+    "lat": 36.9905962,
+    "lng": -122.0687845
+  },
+  {
+    "name": "Parking Lot 135 Santa Cruz",
+    "lat": 36.99188000000001,
+    "lng": -122.0676825
+  },
+  {
+    "name": "Parking Lot 136 Santa Cruz",
+    "lat": 36.9925845,
+    "lng": -122.0675816
+  },
+  {
+    "name": "Parking Lot 138 Santa Cruz",
+    "lat": 37.0002252,
+    "lng": -122.063895
+  },
+  {
+    "name": "Parking Lot 139 Santa Cruz",
+    "lat": 37.0006455,
+    "lng": -122.0620968
+  },
+  {
+    "name": "Parking Lot 140 Santa Cruz",
+    "lat": 36.9957364,
+    "lng": -122.0616349
+  },
+  {
+    "name": "Parking Lot 141 Santa Cruz",
+    "lat": 36.9964885,
+    "lng": -122.0616788
+  },
+  {
+    "name": "Parking Lot 143 Santa Cruz",
+    "lat": 36.9970729,
+    "lng": -122.0670583
+  },
+  {
+    "name": "Parking Lot 144 Santa Cruz",
+    "lat": 36.9910462,
+    "lng": -122.0531602
+  },
+  {
+    "name": "Parking Lot 145 Santa Cruz",
+    "lat": 36.997283,
+    "lng": -122.0672385
+  },
+  {
+    "name": "Parking Lot 146 Santa Cruz",
+    "lat": 36.9922892,
+    "lng": -122.0645075
+  },
+  {
+    "name": "Parking Lot 147 Santa Cruz",
+    "lat": 36.99682180000001,
+    "lng": -122.0653125
+  },
+  {
+    "name": "Parking Lot 149 Santa Cruz",
+    "lat": 36.979712,
+    "lng": -122.0535782
+  },
+  {
+    "name": "Parking Lot 150 Santa Cruz",
+    "lat": 37.0025371,
+    "lng": -122.0659824
+  },
+  {
+    "name": "Parking Lot 152 Santa Cruz",
+    "lat": 37.0021419,
+    "lng": -122.0535165
+  },
+  {
+    "name": "Parking Lot 153 Santa Cruz",
+    "lat": 37.0021345,
+    "lng": -122.0542498
+  },
+  {
+    "name": "Parking Lot 154 Santa Cruz",
+    "lat": 37.0021967,
+    "lng": -122.0548183
+  },
+  {
+    "name": "Parking Lot 155 Santa Cruz",
+    "lat": 36.982864,
+    "lng": -122.059665
+  },
+  {
+    "name": "Parking Lot 156 Santa Cruz",
+    "lat": 37.0021312,
+    "lng": -122.0554566
+  },
+  {
+    "name": "Parking Lot 157 Santa Cruz",
+    "lat": 37.0000022,
+    "lng": -122.0645135
+  },
+  {
+    "name": "Parking Lot 158 Santa Cruz",
+    "lat": 36.9983315,
+    "lng": -122.0646055
+  },
+  {
+    "name": "Parking Lot 159 Santa Cruz",
+    "lat": 36.9971179,
+    "lng": -122.0639491
+  },
+  {
+    "name": "Parking Lot 160 Santa Cruz",
+    "lat": 36.9902183,
+    "lng": -122.0647811
+  },
+  {
+    "name": "Parking Lot 161 Santa Cruz",
+    "lat": 36.990008,
+    "lng": -122.0648743
+  },
+  {
+    "name": "Parking Lot 162 Santa Cruz",
+    "lat": 36.9990766,
+    "lng": -122.0636772
+  },
+  {
+    "name": "Parking Lot 163 Santa Cruz",
+    "lat": 36.9910462,
+    "lng": -122.0531602
+  },
+  {
+    "name": "Parking Lot 164 Santa Cruz",
+    "lat": 37.0001383,
+    "lng": -122.0589531
+  },
+  {
+    "name": "Parking Lot 165 Santa Cruz",
+    "lat": 37.001789,
+    "lng": -122.0594048
+  },
+  {
+    "name": "Parking Lot 166 Santa Cruz",
+    "lat": 36.9990766,
+    "lng": -122.0636772
+  },
+  {
+    "name": "Parking Lot 167 Santa Cruz",
+    "lat": 37.003299,
+    "lng": -122.0589531
+  },
+  {
+    "name": "Parking Lot 168 Santa Cruz",
+    "lat": 36.9853535,
+    "lng": -122.0555029
+  },
+  {
+    "name": "Parking Lot 169 Santa Cruz",
+    "lat": 36.9868227,
+    "lng": -122.0553771
+  },
+  {
+    "name": "Parking Lot 170 Santa Cruz",
+    "lat": 36.982864,
+    "lng": -122.059665
+  },
+  {
+    "name": "Parking Lot 201 Santa Cruz",
+    "lat": 36.9910462,
+    "lng": -122.0531602
+  },
+  {
+    "name": "Parking Lot 202 Santa Cruz",
+    "lat": 36.982864,
+    "lng": -122.059665
+  },
+  {
+    "name": "Parking Lot 203 Santa Cruz",
+    "lat": 36.9910462,
+    "lng": -122.0531602
+  },
+  {
+    "name": "Parking Lot 205 Santa Cruz",
+    "lat": 36.982864,
+    "lng": -122.059665
+  },
+  {
+    "name": "Parking Lot 206 Santa Cruz",
+    "lat": 36.9990766,
+    "lng": -122.0636772
+  },
+  {
+    "name": "Parking Lot 301 Santa Cruz",
+    "lat": 36.979712,
+    "lng": -122.0535782
+  },
+  {
+    "name": "Parking Lot 15169 Santa Cruz",
+    "lat": 36.9990766,
+    "lng": -122.0636772
+  },
+  {
+    "name": "ACADEMIC RESOURCE CENTER",
+    "lat": 36.9942591,
+    "lng": -122.0595717
+  },
+  {
+    "name": "BASKIN VISUAL ARTS",
+    "lat": 36.9945628,
+    "lng": -122.06101
+  },
+  {
+    "name": "COLLEGE NINE",
+    "lat": 37.0009692,
+    "lng": -122.0572156
+  },
+  {
+    "name": "COOLIDGE DRIVE",
+    "lat": 36.9905322,
+    "lng": -122.0584354
+  },
+  {
+    "name": "COWELL COLLEGE",
+    "lat": 36.9971217,
+    "lng": -122.0542688
+  },
+  {
+    "name": "COWELL COLLEGE INFILL APTS",
+    "lat": 36.9968848,
+    "lng": -122.0548043
+  },
+  {
+    "name": "CROWN APARTMENTS",
+    "lat": 37.0002564,
+    "lng": -122.0545274
+  },
+  {
+    "name": "CROWN COLLEGE",
+    "lat": 37.0002564,
+    "lng": -122.0545274
+  },
+  {
+    "name": "CROWN SERVICE ROAD",
+    "lat": 37.0002564,
+    "lng": -122.0545274
+  },
+  {
+    "name": "EARTH AND MARINE SCIENCES BUILDING",
+    "lat": 36.9980199,
+    "lng": -122.0596412
+  },
+  {
+    "name": "ENGINEERING LIBRARY",
+    "lat": 36.9991097,
+    "lng": -122.0607236
+  },
+  {
+    "name": "FAMILY STUDENT HOUSING",
+    "lat": 36.9909358,
+    "lng": -122.067765
+  },
+  {
+    "name": "FARM CASFS",
+    "lat": 36.9834578,
+    "lng": -122.0551838
+  },
+  {
+    "name": "FARM ROAD",
+    "lat": 36.9835023,
+    "lng": -122.0547203
+  },
+  {
+    "name": "HAGAR DRIVE",
+    "lat": 36.9902927,
+    "lng": -122.0544847
+  },
+  {
+    "name": "KRESGE COLLEGE",
+    "lat": 36.9973214,
+    "lng": -122.0665912
+  },
+  {
+    "name": "LEONARDO LANE",
+    "lat": 37.0016212,
+    "lng": -122.0660524
+  },
+  {
+    "name": "LOOKOUT",
+    "lat": 36.9905322,
+    "lng": -122.0584354
+  },
+  {
+    "name": "MERRILL COLLEGE",
+    "lat": 36.9998886,
+    "lng": -122.0532601
+  },
+  {
+    "name": "MERRILL COLLEGE APTS",
+    "lat": 36.9998886,
+    "lng": -122.0532601
+  },
+  {
+    "name": "OAKES COLLEGE",
+    "lat": 36.9894756,
+    "lng": -122.0628583
+  },
+  {
+    "name": "OAKES FIELD SERVICE ROAD",
+    "lat": 36.9894756,
+    "lng": -122.0628583
+  },
+  {
+    "name": "PORTER COLLEGE",
+    "lat": 36.9942972,
+    "lng": -122.0653087
+  },
+  {
+    "name": "PORTER-KRESGE ROAD",
+    "lat": 36.9969026,
+    "lng": -122.065746
+  },
+  {
+    "name": "RACHEL CARSON COLLEGE",
+    "lat": 36.9911929,
+    "lng": -122.0647236
+  },
+  {
+    "name": "RACHEL CARSON SERVICE ROAD",
+    "lat": 36.9916191,
+    "lng": -122.0653896
+  },
+  {
+    "name": "RED HILL ROAD",
+    "lat": 37.0035442,
+    "lng": -122.0659375
+  },
+  {
+    "name": "STEINHART WAY",
+    "lat": 36.9968225,
+    "lng": -122.0595142
+  },
+  {
+    "name": "STEVENSON SERVICE ROAD",
+    "lat": 36.996897,
+    "lng": -122.0512963
+  },
+  {
+    "name": "THEATER ARTS CENTER",
+    "lat": 36.9947358,
+    "lng": -122.0625841
+  },
+  {
+    "name": "THIMANN LABS",
+    "lat": 36.9981285,
+    "lng": -122.0620808
+  },
+  {
+    "name": "VILLAGE",
+    "lat": 36.9857693,
+    "lng": -122.0551994
+  },
+  {
+    "name": "VILLAGE ROAD",
+    "lat": 36.9870248,
+    "lng": -122.0554805
+  },
+  {
+    "name": "WEST FIELD HOUSE - RACHEL CARSON COL",
+    "lat": 36.9913733,
+    "lng": -122.0640703
+  },
+  {
+    "name": "WEST SIDE RESEARCH PARK",
+    "lat": 36.9564003,
+    "lng": -122.0587269
+  }
+]
