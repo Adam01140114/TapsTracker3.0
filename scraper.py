@@ -352,7 +352,16 @@ def precheck_new_users(col: str = "new_users"):
     except g_exceptions.PermissionDenied as e:
         dbg(f"‼ new_users check skipped – permission denied: {e.message}")
         return
-    existing = {ln.strip().upper() for ln in MAIN_PATH.read_text("utf-8").splitlines()} if MAIN_PATH.exists() else set()
+
+    # load existing lines so we don’t duplicate in main.txt
+    existing = set()
+    if MAIN_PATH.exists():
+        existing = {
+            ln.strip().upper()
+            for ln in MAIN_PATH.read_text("utf-8").splitlines()
+            if ln.strip()
+        }
+
     new_lines = []
     for doc in docs:
         d = doc.to_dict() or {}
@@ -360,26 +369,64 @@ def precheck_new_users(col: str = "new_users"):
         citation = (d.get("citationNumber") or "").strip()
         email    = (d.get("email") or "").strip()
         full     = (d.get("fullName") or "").strip()
+        uid      = email or plate or doc.id
+
+        # basic validation
         if not (plate and citation):
+            dbg(f"⚠ Malformed new_users entry, deleting: {doc.id}")
             doc.reference.delete()
             continue
-        ok, tickets = process(plate, citation)
-        uid = email or plate
-        db.collection("current_users").document(uid).set({
-            "fullName": full, "email": email, "licensePlate": plate,
-            "tickets": firestore.ArrayUnion(tickets),
-            "lastUpdated": firestore.SERVER_TIMESTAMP
-        }, merge=True)
+
+        # attempt to scrape/process
+        try:
+            ok, tickets = process(plate, citation)
+        except Exception as e:
+            dbg(f"‼ Unexpected error processing {citation}: {e}")
+            # remove bad entry
+            doc.reference.delete()
+            continue
+
+        # if process failed or returned no tickets, drop it
+        if not ok or not tickets:
+            dbg(f"ℹ No tickets found for {citation}, removing request.")
+            doc.reference.delete()
+            continue
+
+        # ---- at this point we have >=1 ticket in `tickets` ----
+
+        # merge into current_users
+        try:
+            db.collection("current_users") \
+              .document(uid.upper()) \
+              .set({
+                  "fullName": full,
+                  "email": email,
+                  "licensePlate": plate,
+                  "tickets": firestore.ArrayUnion(*tickets),
+                  "lastUpdated": firestore.SERVER_TIMESTAMP
+              }, merge=True)
+        except Exception as e:
+            dbg(f"‼ Firestore write failed for {citation}: {e}")
+            # do not delete the request so we can retry
+            continue
+
+        # append to main.txt if new
         line = f"{citation.upper()},{plate}"
         if line.upper() not in existing:
             new_lines.append(line)
             existing.add(line.upper())
+
+        # finally remove from new_users
         doc.reference.delete()
+
+    # write any new main.txt lines
     if new_lines:
         with MAIN_PATH.open("a", encoding="utf-8") as f:
             f.write("\n".join(new_lines) + "\n")
         dbg(f"Added {len(new_lines)} ticket(s) from new_users to main.txt")
+
     dbg("------ new_users check complete ------")
+
 
 def transfer_firestore_to_main(col: str = "bruh"):
     dbg("------ Transferring bruh → main.txt ------")

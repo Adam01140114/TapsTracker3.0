@@ -87,140 +87,123 @@ async function loadUserTickets (email) {
 	let map;                // globally visible
   const markers = [];     // keep references so we can clear them later
 
-  function initMap () {
-    // Create the map centered on UCSC
-    const map = new google.maps.Map(document.getElementById("map"), {
-      center: { lat: 36.9916, lng: -122.0583 },
-      zoom: 15,
-      mapTypeId: "roadmap",
-      styles: [
-        {
-          featureType: "poi",
-          elementType: "labels",
-          stylers: [{ visibility: "off" }],
+function initMap() {
+  // 1️⃣ Create the map without hard-coded center/zoom
+  const map = new google.maps.Map(document.getElementById("map"), {
+    center: { lat: 0, lng: 0 },
+    zoom: 2,
+    mapTypeId: "roadmap",
+    styles: [{
+      featureType: "poi",
+      elementType: "labels",
+      stylers: [{ visibility: "off" }],
+    }],
+  });
+
+  // 2️⃣ Optional: keep your user-location pin
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      new google.maps.Marker({
+        position: {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude
         },
-      ],
-    });
-
-    // Add blue pin for user location if available
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const userLocation = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          };
-
-          new google.maps.Marker({
-            position: userLocation,
-            map: map,
-            title: "Your Location",
-            icon: {
-              path: google.maps.SymbolPath.CIRCLE,
-              scale: 8,
-              fillColor: "#4285F4",
-              fillOpacity: 1,
-              strokeColor: "#FFFFFF",
-              strokeWeight: 2
-            }
-          });
-        }
-      );
-    }
-
-    // Sort allSightings by time_exact from newest to oldest
-    const sortedSightings = [...allSightings].sort((a, b) => 
-      new Date(b.time_exact) - new Date(a.time_exact)
-    );
-
-    // Get 3 unique locations
-    const uniqueLocations = new Set();
-    const pinsToShow = [];
-    
-    for (let s = 0; s < sortedSightings.length && pinsToShow.length < 3; s++) {
-      const sighting = sortedSightings[s];
-      // Skip if we already have this location
-      if (uniqueLocations.has(sighting.college)) {
-        continue;
-      }
-      const coords = getLocationCoordinates(sighting.college);
-      if (coords) {
-        uniqueLocations.add(sighting.college);
-        pinsToShow.push({ sighting, coords });
-        console.log(`Adding pin ${pinsToShow.length}: ${sighting.college} at ${new Date(sighting.time_exact).toLocaleString()}`);
-      }
-    }
-
-    console.log(`Found ${pinsToShow.length} unique locations to show`);
-
-    // Opacity values for 3 pins, from most recent to oldest
-    const opacities = [1.0, 0.6, 0.3];
-    
-    // Create markers and store their positions for the route
-    const waypoints = [];
-    pinsToShow.forEach((item, idx) => {
-      const { sighting, coords } = item;
-      const sightingTime = new Date(sighting.time_exact);
-      sightingTime.setHours(sightingTime.getHours() + 7); // Adjust time for display
-      const opacity = opacities[idx];
-
-      const marker = new google.maps.Marker({
-        position: coords,
-        map: map,
-        title: `${sighting.college}\nTime: ${sightingTime.toLocaleTimeString()}\nDate: ${sightingTime.toLocaleDateString()}`,
+        map,
+        title: "Your Location",
         icon: {
-          url: 'pin.png',
-          scaledSize: new google.maps.Size(24, 36),
-          anchor: new google.maps.Point(12, 36),
-          labelOrigin: new google.maps.Point(12, 12),
-        },
-        optimized: false
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: "#4285F4",
+          fillOpacity: 1,
+          strokeColor: "#FFFFFF",
+          strokeWeight: 2
+        }
       });
-      marker.setOpacity(opacity);
-      marker.addListener("click", () => {
-        const infowindow = new google.maps.InfoWindow({
-          content: `<div><strong>${sighting.college}</strong><br>Time: ${sightingTime.toLocaleTimeString()}<br>Date: ${sightingTime.toLocaleDateString()}<br>Citation #: ${sighting.citationNumber}</div>`
-        });
-        infowindow.open(map, marker);
-      });
+    });
+  }
 
-      // Store position for route
-      waypoints.unshift(coords); // Add to beginning to reverse order (oldest first)
+  // 3️⃣ Sort & pick three most-recent unique sightings
+  const sorted = [...allSightings].sort((a, b) =>
+    new Date(b.time_exact) - new Date(a.time_exact)
+  );
+  const seen = new Set();
+  const pinsToShow = [];
+  for (let s of sorted) {
+    if (pinsToShow.length >= 3) break;
+    if (seen.has(s.college)) continue;
+    const coords = getLocationCoordinates(s.college);
+    if (!coords) continue;
+    seen.add(s.college);
+    pinsToShow.push({ sighting: s, coords });
+  }
+
+  // 4️⃣ Build a bounds object to auto-fit
+  const bounds = new google.maps.LatLngBounds();
+
+  // 5️⃣ Place markers & extend bounds
+  const opacities = [1.0, 0.6, 0.3];
+  pinsToShow.forEach((item, idx) => {
+    const { sighting, coords } = item;
+    const when = new Date(sighting.time_exact);
+    when.setHours(when.getHours() + 7); // if you still need your offset
+
+    const marker = new google.maps.Marker({
+      position: coords,
+      map,
+      opacity: opacities[idx],
+      title: `${sighting.college}\n${when.toLocaleDateString()} ${when.toLocaleTimeString()}`,
+      icon: {
+        url: 'pin.png',
+        scaledSize: new google.maps.Size(24, 36),
+        anchor: new google.maps.Point(12, 36),
+        labelOrigin: new google.maps.Point(12, 12),
+      },
+      optimized: false
     });
 
-    // If we have all 3 pins, create the driving route
-    if (waypoints.length === 3) {
-      const directionsService = new google.maps.DirectionsService();
-      const directionsRenderer = new google.maps.DirectionsRenderer({
-        map: map,
-        suppressMarkers: true, // Don't show default markers
-        polylineOptions: {
-          strokeColor: '#4285F4', // Google Maps blue
-          strokeOpacity: 1.0,
-          strokeWeight: 4
-        }
-      });
+    marker.addListener("click", () => {
+      new google.maps.InfoWindow({
+        content: `<div><strong>${sighting.college}</strong><br>
+                  Date: ${when.toLocaleDateString()}<br>
+                  Time: ${when.toLocaleTimeString()}<br>
+                  Citation #: ${sighting.citationNumber}</div>`
+      }).open(map, marker);
+    });
 
-      // Create route from oldest to newest
-      const request = {
-        origin: waypoints[0], // Oldest citation
-        destination: waypoints[2], // Newest citation
-        waypoints: [{
-          location: waypoints[1], // Middle citation
-          stopover: true
-        }],
-        travelMode: 'DRIVING'
-      };
+    bounds.extend(coords);
+  });
 
-      directionsService.route(request, function(result, status) {
-        if (status === 'OK') {
-          directionsRenderer.setDirections(result);
-        } else {
-          console.warn('Directions request failed due to ' + status);
-        }
-      });
-    }
+  // 6️⃣ Fit the map to those three markers
+  if (pinsToShow.length) {
+    map.fitBounds(bounds);
   }
+
+  // 7️⃣ (Optional) If you still want the driving route between them:
+  if (pinsToShow.length === 3) {
+    const [oldest, middle, newest] = pinsToShow.slice().reverse();
+    const directionsService = new google.maps.DirectionsService();
+    const directionsRenderer = new google.maps.DirectionsRenderer({
+      map,
+      suppressMarkers: true,
+      polylineOptions: {
+        strokeColor: '#4285F4',
+        strokeOpacity: 1.0,
+        strokeWeight: 4
+      }
+    });
+
+    directionsService.route({
+      origin: oldest.coords,
+      destination: newest.coords,
+      waypoints: [{ location: middle.coords, stopover: true }],
+      travelMode: 'DRIVING'
+    }, (result, status) => {
+      if (status === 'OK') directionsRenderer.setDirections(result);
+      else console.warn('Directions request failed:', status);
+    });
+  }
+}
+
 
   function getLocationCoordinates(location) {
     // Define coordinates for each location
@@ -1166,8 +1149,9 @@ async function submitCitationSetup () {
   }
 
   /* instant “hang‑tight” UI */
-  if (promptEl) promptEl.textContent =
-      'Please give us a moment to verify your account…';
+  if (promptEl) promptEl.innerHTML =
+  '<br><br>Please give us a moment to verify your account…';
+
   if (inputEl)  inputEl.style.display = 'none';
   if (buttonEl) buttonEl.style.display = 'none';
 
@@ -1214,8 +1198,24 @@ async function submitCitationSetup () {
 
     /* locally mark setup complete so prompt disappears next load */
     setCookie('finishedSetup', 'done', 30);
-    if (promptEl) promptEl.textContent =
-        'Give us a moment to verify your account';
+    if (promptEl) {
+  // 1. clear out whatever was there
+  promptEl.innerHTML = '';
+
+  // 2. create your break(s)
+  const br1 = document.createElement('br');
+  const br2 = document.createElement('br');
+
+  // 3. append them *before* your text
+  promptEl.appendChild(br1);
+  promptEl.appendChild(br2);
+
+  // 4. then append your actual message as text
+  promptEl.appendChild(
+    document.createTextNode('Please give us a moment to verify your account…')
+  );
+}
+
 
   } catch (err) {
     alert('Error submitting citation: ' + err.message);
@@ -1307,15 +1307,15 @@ const lastName  = getCookie('userFullName')
   const licensePlate = getCookie('userLicensePlate') || '';
   const password = getCookie('userPassword') || '';
   document.getElementById('accountFormFields').innerHTML = `
-    <input type="text" id="signupFirstName" placeholder="First Name" value="${firstName}" style="margin-bottom:10px;width:80%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br>
-    <input type="text" id="signupLastName" placeholder="Last Name" value="${lastName}" style="margin-bottom:10px;width:80%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br><br>
-    <br><br><input type="email" id="signupEmail" placeholder="Email" value="${email}" style="margin-bottom:10px;width:80%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br>
-    <input type="text" id="signupLicensePlate" placeholder="License Plate" value="${licensePlate}" style="margin-bottom:10px;width:80%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br><br>
-    <br><br><input type="password" id="signupPassword" placeholder="Password" value="${password}" style="margin-bottom:10px;width:80%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br>
-    <input type="password" id="signupConfirmPassword" placeholder="Confirm Password" value="${password}" style="margin-bottom:10px;width:80%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br>
+    <input type="text" id="signupFirstName" placeholder="First Name" value="${firstName}" style="margin-bottom:10px;width:90%;height:50px;font-size:18px;border-radius:20px;text-align:center;"><br>
+    <input type="text" id="signupLastName" placeholder="Last Name" value="${lastName}" style="margin-bottom:10px;width:90%;height:50px;font-size:18px;border-radius:20px;text-align:center;"><br><br>
+    <br><input type="email" id="signupEmail" placeholder="Email" value="${email}" style="margin-bottom:10px;width:90%;height:50px;font-size:18px;border-radius:20px;text-align:center;"><br>
+    <input type="text" id="signupLicensePlate" placeholder="License Plate" value="${licensePlate}" style="margin-bottom:10px;width:90%;height:50px;font-size:18px;border-radius:20px;text-align:center;"><br><br>
+    <br><input type="password" id="signupPassword" placeholder="Password" value="${password}" style="margin-bottom:10px;width:90%;height:50px;font-size:18px;border-radius:20px;text-align:center;"><br>
+    <input type="password" id="signupConfirmPassword" placeholder="Confirm Password" value="${password}" style="margin-bottom:10px;width:90%;height:50px;font-size:18px;border-radius:20px;text-align:center;"><br><br>
   `;
   document.getElementById('signUpButton').style.display = '';
-  document.getElementById('signUpButton').innerHTML = '<h3>Sign&nbsp;Up</h3>';
+  document.getElementById('signUpButton').innerHTML = '<h3>Sign Up</h3>';
   document.getElementById('signUpButton').onclick = submitSignUp;
   document.getElementById('loginButton').innerHTML = '<h3>Back</h3>';
   document.getElementById('loginButton').onclick = resetAccountSection;
@@ -1510,7 +1510,9 @@ window.addEventListener('DOMContentLoaded', async function() {
   // Show setup prompt
   if (setupPrompt) {
     setupPrompt.style.display = '';
-    setupPrompt.innerHTML = 'To finish setting up your account, please enter one of your citation numbers:';
+    setupPrompt.innerHTML = 
+  '<br><br><br><br>To finish setting up your account, please enter one of your citation numbers:';
+
   }
 
   // Show citation number input and submit button
@@ -1555,268 +1557,219 @@ window.addEventListener('DOMContentLoaded', async function() {
 })
 
 
-/* ────────────────────────────────────────────────────────────── *
- *  4.  showAccountSection – builds/refreshes the account UI      *
- *      – always inserts Log‑Out button                           *
- *      – mounts new “Park & get alerts” mini‑app                 *
- *      – calls loadUserTickets(email) when skeleton is ready     *
- * ────────────────────────────────────────────────────────────── */
-function showAccountSection(fullName, licensePlate, finishedSetup = '') {
 
-  /* grab the DOM shell once */
-  const section     = document.getElementById('accountSection');
-  const formFields  = document.getElementById('accountFormFields');
-  const setupPrompt = section.querySelector('p');
 
-  /* clean up any stray Back button from login form */
+
+
+
+
+async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
+  const section    = document.getElementById('accountSection');
+  const formFields = document.getElementById('accountFormFields');
+  let setupPrompt  = section.querySelector('p');
+  if (!setupPrompt) {
+    setupPrompt = document.createElement('p');
+    section.insertBefore(setupPrompt, formFields);
+  }
+
   const staleBack = document.getElementById('backButton');
   if (staleBack) staleBack.remove();
 
-  /* hide Sign‑Up / Log‑In controls */
   document.getElementById('signUpButton').style.display = 'none';
   document.getElementById('loginButton').style.display  = 'none';
 
-  /* personalised header */
-  section.querySelector('h1').innerHTML =
-      `<b><u>Welcome, ${toTitleCase(fullName)}</u></b><br><br>`;
-  section.querySelector('h1').style.marginBottom = '5px';
-
-  /* build / refresh the inner skeleton -------------------------------- */
-  formFields.innerHTML = `
-    <!-- 🚗 NEW parking section goes here -->
-    <div id="parkingSection">
-        <p style="font-size:25px;margin:6px 0;">
-            <b>Park your car and receive live alerts when TAPS is nearby</b>
-        </p>
-        <br><button id="parkButton" class="action-btn">Park</button>
-    </div><br>
-
-    <!-- existing tickets UI (unchanged) -->
-    <div id="userTicketsHeader" class="tickets-head"></div>
-    <div id="userTicketsContainer"></div>
-	
-	 <!--
-    <button id="toggleUserTickets" class="action-btn"
-            style="margin-top:6px;">Show ore</button><br>-->
-  `;
-
-  /* ───────────────── Parking UI controller – fully self‑contained ─── */
-  (function initParkingBlock (fullNameFromProfile) {
-
-    const parkingDiv  = document.getElementById('parkingSection');
-    const parkBtn     = document.getElementById('parkButton');
-
-    /* ❶ Default idle state */
-    parkBtn.onclick = startParkingPrompt;
-
-    function startParkingPrompt () {
-      parkingDiv.innerHTML = `
-        </b><label><h1>Choose your location</h1></label>
-        <select id="parkLocation" style="width:80%;height:40px;
-                 margin:6px 0;text-align-last:center;border-radius:20px;"></select><br><br>
-        <br><label><h1>How many hours?</h1></label>
-        <input type="number" id="parkHours" min="1" max="24" value="2"
-               style="width:120px;height:40px;font-size:18px;text-align:center;
-                      border-radius:20px;margin:6px 0;"><br><br><br>
-        <button id="confirmPark" class="action-btn">Park</button>
-        <center><br><button id="cancelPark"  class="action-btn" >Cancel</button>
-      `;
-      populateParkDropdown();
-      document.getElementById('confirmPark').onclick = confirmParking;
-      document.getElementById('cancelPark' ).onclick = resetParkingUi;
-    }
-
-    function populateParkDropdown () {
-  const sel = document.getElementById('parkLocation');
-  sel.innerHTML = '';
-
-  // Add "Current Location" option
-  const currentOpt = document.createElement('option');
-  currentOpt.value = '__CURRENT_LOCATION__';
-  currentOpt.textContent = 'Current Location';
-  sel.appendChild(currentOpt);
-
-  // Clone options from #predictionLocation
-  document.querySelectorAll('#predictionLocation option')
-          .forEach(o => sel.appendChild(o.cloneNode(true)));
-}
-
-
-    async function confirmParking () {
-  const loc   = document.getElementById('parkLocation').value;
-  const hours = parseInt(document.getElementById('parkHours').value, 10);
-  if (!hours || hours < 1) {
-    alert('Enter a valid number of hours');
-    return;
-  }
+  const h1 = section.querySelector('h1');
+  h1.innerHTML = `<p style="font-size:42px;"><b>Welcome, ${toTitleCase(fullName)}</b></p>`;
+  h1.style.marginBottom = '5px';
 
   const user  = firebase.auth().currentUser || {};
   const email = user.email || getCookie('userEmail') || '';
-  const name  = getCookie('userFullName') || '';
 
-  if (loc === '__CURRENT_LOCATION__') {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported on this device.');
+  // 1️⃣ if there's still a pending verification in /new_users
+  try {
+    const pending = await db
+      .collection('new_users')
+      .where('email', '==', email)
+      .limit(1)
+      .get();
+    if (!pending.empty) {
+      setupPrompt.style.display = '';
+      setupPrompt.innerHTML     = '<br><br>Please give us a moment to verify your account…';
+      formFields.innerHTML      = '';
       return;
     }
-
-    navigator.geolocation.getCurrentPosition(async position => {
-      const coords = {
-        lat: position.coords.latitude,
-        lng: position.coords.longitude
-      };
-
-      await db.collection('parked_users').add({
-        email,
-        fullName: name,
-        location: 'Current Location',
-        coords,
-        hours,
-        start: firebase.firestore.FieldValue.serverTimestamp()
-      });
-
-      startCountdown(hours * 3600); // Continue as usual
-
-    }, error => {
-      alert('Could not get location: ' + error.message);
-    });
-
-    return; // Exit to prevent continuing without location
+  } catch (err) {
+    console.error('Failed to check new_users:', err);
   }
 
-  // Default behavior for named locations
-  await db.collection('parked_users').add({
-    email,
-    fullName: name,
-    location: loc,
-    hours,
-    start: firebase.firestore.FieldValue.serverTimestamp()
-  });
+  // 2️⃣ not finishedSetup yet → prompt for citation number
+  if (finishedSetup !== 'done') {
+    setupPrompt.id            = 'setupPrompt';
+    setupPrompt.style.display = '';
+    setupPrompt.textContent   = 'To finish setting up your account, please enter one of your citation numbers:';
+    setupPrompt.insertAdjacentHTML('afterbegin', '<br><br>');
 
-  startCountdown(hours * 3600);
-}
+    formFields.innerHTML = `
+      <input
+        type="text"
+        id="citationNumberSetup"
+        placeholder="Citation Number"
+        style="margin-bottom:10px;width:90%;height:50px;font-size:18px;border-radius:20px;text-align:center;"
+      ><br>
+      <button
+        id="submitCitationSetup"
+        style="margin-top:10px;width:200px;height:50px;font-size:20px;border-radius:20px;"
+      >Submit</button>
+    `;
+    document.getElementById('submitCitationSetup').onclick = submitCitationSetup;
 
+    if (!document.getElementById('logoutButton')) {
+      const lo = document.createElement('button');
+      lo.id          = 'logoutButton';
+      lo.textContent = 'Log Out';
+      lo.style.cssText = 'margin-top:40px;width:200px;height:50px;font-size:20px;border-radius:20px;';
+      lo.onclick     = logout;
+      formFields.appendChild(lo);
+    }
+    return;
+  }
 
-    /* ❷ Live “Scanning” state */
-    let timerId = null;
+  // 3️⃣ double-check that they're actually in /current_users
+  try {
+    const cur = await db
+      .collection('current_users')
+      .where('email', '==', email)
+      .limit(1)
+      .get();
+    if (cur.empty) {
+      setupPrompt.style.display = '';
+      setupPrompt.textContent   = 'Awaiting account verification…';
+      formFields.innerHTML      = '';
+      return;
+    }
+  } catch (err) {
+    console.error('Failed to check current_users:', err);
+  }
 
-    function startCountdown (seconds, docId) {
+  // 4️⃣ fully verified → render parking UI + tickets container
+  setupPrompt.style.display = 'none';
+  formFields.innerHTML = `
+    <div id="parkingSection">
+      <p style="font-size:30px;margin:6px 0;">
+        <b>Park your car and receive live alerts when TAPS is nearby</b>
+      </p><br>
+      <button id="parkButton" class="action-btn">Park</button>
+    </div><br>
+    <div id="userTicketsHeader" class="tickets-head"></div>
+    <div id="userTicketsContainer"></div>
+  `;
+
+  (function initParkingBlock() {
+    const parkingDiv = document.getElementById('parkingSection');
+    const parkBtn    = document.getElementById('parkButton');
+    parkBtn.onclick  = startParkingPrompt;
+
+    function startParkingPrompt() {
       parkingDiv.innerHTML = `
-        <p style="font-size:25px;margin:6px 0;"><b>Scanning for TAPS</b></p>
-		
-        <div id="countdown" style="font-size:24px;margin:6px 0;"></div>
-		
-		<br><p style="font-size:25px;margin:6px 0;"><b>Check your email for live alerts</b></p>
-        <button id="stopPark" class="action-btn">Stop</button><br>
+        <label><h1>Choose your location</h1></label>
+        <select id="parkLocation" style="width:80%;height:50px;margin:6px 0;text-align-last:center;border-radius:20px;font-size:22px;"></select><br><br>
+        <label><h1>For how many hours?</h1></label>
+        <input type="number" id="parkHours" min="1" max="24" value="2" style="width:120px;height:40px;font-size:22px;text-align:center;border-radius:20px;margin:6px 0;"><br><br>
+        <button id="confirmPark" class="action-btn">Park</button>
+        <button id="cancelPark"  class="action-btn">Cancel</button>
+      `;
+      populateParkDropdown();
+      document.getElementById('confirmPark').onclick = confirmParking;
+      document.getElementById('cancelPark').onclick  = resetParkingUi;
+    }
+
+    async function confirmParking() {
+      const loc   = document.getElementById('parkLocation').value;
+      const hours = parseInt(document.getElementById('parkHours').value, 10);
+      if (!hours || hours < 1) return alert('Enter a valid number of hours');
+      const name  = getCookie('userFullName') || '';
+      if (loc === '__CURRENT_LOCATION__') {
+        if (!navigator.geolocation) return alert('Geolocation not supported.');
+        return navigator.geolocation.getCurrentPosition(async pos => {
+          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          const doc = await db.collection('parked_users').add({
+            email, fullName: name, location: 'Current Location', coords, hours,
+            start: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          startCountdown(hours * 3600, doc.id);
+        }, err => alert('Location error: ' + err.message), { enableHighAccuracy: true, maximumAge: 10000 });
+      }
+      const doc = await db.collection('parked_users').add({
+        email, fullName: name, location: loc, hours,
+        start: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      startCountdown(hours * 3600, doc.id);
+    }
+
+    let timerId;
+    function startCountdown(seconds, docId) {
+      parkingDiv.innerHTML = `
+        <p style="font-size:30px;margin:6px 0;"><b>Scanning for TAPS</b></p><br>
+        <div id="countdown" style="font-size:30px;margin:6px 0;"></div>
+        <p style="font-size:30px;margin:6px 0;"><b>Check your email for live alerts</b></p><br>
+        <button id="stopPark" class="action-btn">Stop</button>
       `;
       updateCountdown(seconds);
-
       timerId = setInterval(() => {
-        seconds--;
-        if (seconds <= 0) stopParking(docId);
-        else updateCountdown(seconds);
+        seconds-- <= 0 ? stopParking(docId) : updateCountdown(seconds);
       }, 1000);
-
       document.getElementById('stopPark').onclick = () => stopParking(docId);
     }
 
-    function updateCountdown (sec) {
+    function updateCountdown(sec) {
       const h = Math.floor(sec / 3600);
-      const m = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
-      const s = (sec % 60).toString().padStart(2, '0');
+      const m = Math.floor((sec % 3600) / 60).toString().padStart(2,'0');
+      const s = (sec % 60).toString().padStart(2,'0');
       document.getElementById('countdown').textContent = `${h}:${m}:${s}`;
     }
 
-    async function stopParking (docId) {
+    async function stopParking(docId) {
       clearInterval(timerId);
       try { await db.collection('parked_users').doc(docId).delete(); }
-      catch (e) { console.warn('could not remove parked entry', e); }
+      catch (e) { console.warn(e); }
       resetParkingUi();
     }
 
-    /* ❸  Restore timer after page reload (if needed) */
-    (async function resumeParkingIfNeeded () {
-      const user  = firebase.auth().currentUser || {};
-      const email = user.email || getCookie('userEmail') || '';
-      if (!email) return;
-
+    (async function resumeParkingIfNeeded() {
       const snap = await db.collection('parked_users')
-                            .where('email', '==', email)
-                            .orderBy('start', 'desc')
-                            .limit(1).get();
+                           .where('email','==',email)
+                           .orderBy('start','desc')
+                           .limit(1).get();
       if (snap.empty) return;
-
-      const doc       = snap.docs[0];
-      const data      = doc.data();
-      const startedAt = data.start?.toDate?.() || new Date(data.start);
-      const expiresAt = +startedAt + data.hours * 3600 * 1000;
-      const remaining = Math.floor((expiresAt - Date.now()) / 1000);
-
-      if (remaining > 0) startCountdown(remaining, doc.id);
-      else               await doc.ref.delete();   // clean up stale entry
+      const d = snap.docs[0].data();
+      const startedAt = d.start.toDate();
+      const remaining = Math.floor((startedAt.getTime() + d.hours*3600000 - Date.now())/1000);
+      remaining>0 ? startCountdown(remaining, snap.docs[0].id) : snap.docs[0].ref.delete();
     })();
 
-    /* helper resets to idle state */
-    function resetParkingUi () {
+    function resetParkingUi() {
       parkingDiv.innerHTML = `
-        <p style="font-size:25px;margin:0px 0;">
-          <b>Park your car and receive live alerts when TAPS is nearby</b>
-        </p>
-        <br><button id="parkButton" class="action-btn">Park</button>
+        <p style="font-size:30px;margin:0;"><b>Park your car and receive live alerts when TAPS is nearby</b></p><br>
+        <button id="parkButton" class="action-btn">Park</button>
       `;
       document.getElementById('parkButton').onclick = startParkingPrompt;
     }
 
-    /* (optional) expose internals for dev‑tools testing */
     window.__startCountdown = startCountdown;
     window.__stopParking    = stopParking;
+  })();
 
-  })(fullName);  // IIFE receives the user’s name
-  /* ─────────────────────────────────────────────────────────── */
+  loadUserTickets(email);
 
-  /* verification step – citation prompt (only if user not verified) */
-  if (finishedSetup !== 'done') {
-    if (setupPrompt) {
-      setupPrompt.id    = 'setupPrompt';
-      setupPrompt.style.display = '';
-      setupPrompt.textContent   =
-        'To finish setting up your account, please enter one of your citation numbers:';
-    }
-
-    formFields.insertAdjacentHTML('beforeend', `
-      <input type="text" id="citationNumberSetup" placeholder="Citation Number"
-             style="margin-bottom:10px;width:80%;height:40px;font-size:18px;
-                    border-radius:20px;text-align:center;"><br>
-      <button id="submitCitationSetup"
-              style="margin-top:10px;width:200px;height:50px;font-size:20px;
-                     border-radius:20px;">Submit</button>
-    `);
-    document.getElementById('submitCitationSetup').onclick = submitCitationSetup;
-
-  } else if (setupPrompt) {
-    setupPrompt.style.display = 'none';     // hide prompt for verified users
-  }
-
-  /* always ensure there’s a Log‑Out button */
   if (!document.getElementById('logoutButton')) {
     const lo = document.createElement('button');
-    lo.id = 'logoutButton';
+    lo.id          = 'logoutButton';
     lo.textContent = 'Log Out';
-    lo.style.cssText =
-      'margin-top:40px;width:200px;height:50px;font-size:20px;border-radius:20px;';
-    lo.onclick = logout;
+    lo.style.cssText = 'margin-top:40px;width:200px;height:50px;font-size:20px;border-radius:20px;';
+    lo.onclick     = logout;
     formFields.appendChild(lo);
   }
-
-  /* finally, pull the user’s saved citations */
-  const email = firebase.auth().currentUser?.email || getCookie('userEmail') || '';
-  if (email) loadUserTickets(email);
 }
-
-
-
-
-
 
 
 
