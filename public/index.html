@@ -78,7 +78,7 @@
             background-color: #ffffff; /* A lighter shade of blue for the background */
             /* Ensure it's full-width */
             box-sizing: border-box; /* Include padding and border in the width */
-            margin: 10px 0; /* Margin for spacing */
+        
             border: 5px solid lightblue;
             width: 80%;
             border-radius: 40px;
@@ -455,6 +455,35 @@ input[type="password"]::placeholder {
 input:-webkit-autofill {
   -webkit-box-shadow: 0 0 0px 1000px #fff inset !important;
   -webkit-text-fill-color: #000 !important;
+}
+
+
+
+#accountSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;    /* horizontally center its children */
+  text-align: center;      /* center any inline text */
+  margin: 0 auto;          /* ensure the whole block is centered in its parent */
+  padding: 0;              /* reset any horizontal padding */
+}
+
+
+/* Make number inputs look like the other big text fields */
+input[type="number"] {
+  background-color: #ffffff;    /* same white background */
+  color: #000000;               /* black text */
+  font-weight: bold;            /* bold text */
+  font-size: 30px;              /* same size as your other inputs */
+  text-align: center;           /* center the number */
+  border: 3px solid #000000;    /* matching border */
+  border-radius: 40px;          /* matching rounded corners */
+  width: 120px;                 /* or whatever width you like */
+  height: 60px;                 /* same height */
+  box-sizing: border-box;       /* include padding/border */
+  -webkit-appearance: none;     /* override default spinner styling */
+  -moz-appearance: none;
+  appearance: none;
 }
 
 

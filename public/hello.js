@@ -1465,6 +1465,25 @@ function resetAccountSection() {
 
 
 
+// ── fill the “Choose your location” <select> in the park flow
+function populateParkDropdown() {
+  const select = document.getElementById('parkLocation');
+  select.innerHTML = ''; 
+
+  // “Current Location” option
+  const cur = document.createElement('option');
+  cur.value       = '__CURRENT_LOCATION__';
+  cur.textContent = 'Current Location';
+  select.appendChild(cur);
+
+  // Then each campus lot
+  colleges.forEach(col => {
+    const o = document.createElement('option');
+    o.value       = col.name;
+    o.textContent = col.name;
+    select.appendChild(o);
+  });
+}
 
 
 
@@ -1511,13 +1530,13 @@ window.addEventListener('DOMContentLoaded', async function() {
   if (setupPrompt) {
     setupPrompt.style.display = '';
     setupPrompt.innerHTML = 
-  '<br><br><br><br>To finish setting up your account, please enter one of your citation numbers:';
+  '<br><br><br><br>To finish setting up your account, please enter one of your citations';
 
   }
 
   // Show citation number input and submit button
   formFields.innerHTML = `
-    <input type="text" id="citationNumberSetup" placeholder="Citation Number" style="margin-bottom:10px;width:80%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br>
+    <input type="text" id="citationNumberSetup" placeholder="Citation Number (" style="margin-bottom:10px;width:80%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br>
     <button id="submitCitationSetup" style="margin-top:10px;width:200px;height:50px;font-size:20px;border-radius:20px;">Submit</button>
   `;
   document.getElementById('signUpButton').style.display = 'none';
@@ -1562,7 +1581,6 @@ window.addEventListener('DOMContentLoaded', async function() {
 
 
 
-
 async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
   const section    = document.getElementById('accountSection');
   const formFields = document.getElementById('accountFormFields');
@@ -1574,42 +1592,98 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
 
   const staleBack = document.getElementById('backButton');
   if (staleBack) staleBack.remove();
-
   document.getElementById('signUpButton').style.display = 'none';
   document.getElementById('loginButton').style.display  = 'none';
 
   const h1 = section.querySelector('h1');
-  h1.innerHTML = `<p style="font-size:42px;"><b>Welcome, ${toTitleCase(fullName)}</b></p>`;
+  h1.innerHTML       = `<p style="font-size:42px;"><b>Welcome, ${toTitleCase(fullName)}</b></p>`;
   h1.style.marginBottom = '5px';
 
   const user  = firebase.auth().currentUser || {};
   const email = user.email || getCookie('userEmail') || '';
 
-  // 1️⃣ if there's still a pending verification in /new_users
-  try {
-    const pending = await db
-      .collection('new_users')
-      .where('email', '==', email)
-      .limit(1)
-      .get();
-    if (!pending.empty) {
-      setupPrompt.style.display = '';
-      setupPrompt.innerHTML     = '<br><br>Please give us a moment to verify your account…';
-      formFields.innerHTML      = '';
+  const newSnap = await db
+    .collection('new_users')
+    .where('email','==',email)
+    .limit(1)
+    .get()
+    .catch(err => { console.error(err); return { empty: true }; });
+  if (!newSnap.empty) {
+    const docSnap = newSnap.docs[0];
+    const data    = docSnap.data();
+    const docId   = docSnap.id;
+
+    if (data.valid === false) {
+      setupPrompt.style.display  = '';
+      setupPrompt.innerHTML      = `<br>We weren't able to verify your account, please try again`;
+      formFields.innerHTML       = `
+        <button id="retrySetup" style="margin-top:10px;width:200px;height:50px;font-size:20px;border-radius:20px;">
+          Try Again
+        </button>
+      `;
+      document.getElementById('retrySetup').onclick = () => {
+        db.collection('new_users').doc(docId).delete();
+        setupPrompt.id            = 'setupPrompt';
+        setupPrompt.style.display = '';
+        setupPrompt.innerHTML     = `<br><br>To finish setting up your account, please enter one of your citations`;
+        formFields.innerHTML      = `
+          <input
+            type="text"
+            id="citationNumberSetup"
+            placeholder="Citation Number"
+            style="margin-bottom:10px;width:90%;height:50px;font-size:18px;border-radius:20px;text-align:center;"
+          ><br>
+          <button
+            id="submitCitationSetup"
+            style="margin-top:10px;width:200px;height:50px;font-size:20px;border-radius:20px;"
+          >Submit</button>
+        `;
+        document.getElementById('submitCitationSetup').onclick = submitCitationSetup;
+        if (!document.getElementById('logoutButton')) {
+          const lo = document.createElement('button');
+          lo.id          = 'logoutButton';
+          lo.textContent = 'Log Out';
+          lo.style.cssText = 'margin-top:40px;width:200px;height:50px;font-size:20px;border-radius:20px;';
+          lo.onclick     = logout;
+          formFields.appendChild(lo);
+        }
+      };
+      if (!document.getElementById('logoutButton')) {
+        const lo = document.createElement('button');
+        lo.id          = 'logoutButton';
+        lo.textContent = 'Log Out';
+        lo.style.cssText = 'margin-top:40px;width:200px;height:50px;font-size:20px;border-radius:20px;';
+        lo.onclick     = logout;
+        formFields.appendChild(lo);
+      }
       return;
     }
-  } catch (err) {
-    console.error('Failed to check new_users:', err);
+
+    setupPrompt.style.display = '';
+    setupPrompt.innerHTML     = '<br><br>Please give us a moment to verify your account…';
+    formFields.innerHTML      = '';
+    if (!document.getElementById('logoutButton')) {
+      const lo = document.createElement('button');
+      lo.id          = 'logoutButton';
+      lo.textContent = 'Log Out';
+      lo.style.cssText = 'margin-top:40px;width:200px;height:50px;font-size:20px;border-radius:20px;';
+      lo.onclick     = logout;
+      formFields.appendChild(lo);
+    }
+    return;
   }
 
-  // 2️⃣ not finishedSetup yet → prompt for citation number
-  if (finishedSetup !== 'done') {
+  const curSnap = await db
+    .collection('current_users')
+    .where('email','==',email)
+    .limit(1)
+    .get()
+    .catch(err => { console.error(err); return { empty: true }; });
+  if (curSnap.empty) {
     setupPrompt.id            = 'setupPrompt';
     setupPrompt.style.display = '';
-    setupPrompt.textContent   = 'To finish setting up your account, please enter one of your citation numbers:';
-    setupPrompt.insertAdjacentHTML('afterbegin', '<br><br>');
-
-    formFields.innerHTML = `
+    setupPrompt.innerHTML     = '<br><br>To finish setting up your account, please enter one of your citations';
+    formFields.innerHTML      = `
       <input
         type="text"
         id="citationNumberSetup"
@@ -1622,7 +1696,6 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
       >Submit</button>
     `;
     document.getElementById('submitCitationSetup').onclick = submitCitationSetup;
-
     if (!document.getElementById('logoutButton')) {
       const lo = document.createElement('button');
       lo.id          = 'logoutButton';
@@ -1634,30 +1707,12 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
     return;
   }
 
-  // 3️⃣ double-check that they're actually in /current_users
-  try {
-    const cur = await db
-      .collection('current_users')
-      .where('email', '==', email)
-      .limit(1)
-      .get();
-    if (cur.empty) {
-      setupPrompt.style.display = '';
-      setupPrompt.textContent   = 'Awaiting account verification…';
-      formFields.innerHTML      = '';
-      return;
-    }
-  } catch (err) {
-    console.error('Failed to check current_users:', err);
-  }
-
-  // 4️⃣ fully verified → render parking UI + tickets container
   setupPrompt.style.display = 'none';
   formFields.innerHTML = `
     <div id="parkingSection">
       <p style="font-size:30px;margin:6px 0;">
         <b>Park your car and receive live alerts when TAPS is nearby</b>
-      </p><br>
+      </p><br><br>
       <button id="parkButton" class="action-btn">Park</button>
     </div><br>
     <div id="userTicketsHeader" class="tickets-head"></div>
@@ -1675,8 +1730,8 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
         <select id="parkLocation" style="width:80%;height:50px;margin:6px 0;text-align-last:center;border-radius:20px;font-size:22px;"></select><br><br>
         <label><h1>For how many hours?</h1></label>
         <input type="number" id="parkHours" min="1" max="24" value="2" style="width:120px;height:40px;font-size:22px;text-align:center;border-radius:20px;margin:6px 0;"><br><br>
-        <button id="confirmPark" class="action-btn">Park</button>
-        <button id="cancelPark"  class="action-btn">Cancel</button>
+        <br><button id="confirmPark" class="action-btn">Park</button><br>
+        <button id="cancelPark" class="action-btn">Cancel</button>
       `;
       populateParkDropdown();
       document.getElementById('confirmPark').onclick = confirmParking;
@@ -1730,8 +1785,7 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
 
     async function stopParking(docId) {
       clearInterval(timerId);
-      try { await db.collection('parked_users').doc(docId).delete(); }
-      catch (e) { console.warn(e); }
+      await db.collection('parked_users').doc(docId).delete().catch(() => {});
       resetParkingUi();
     }
 
@@ -1744,7 +1798,8 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
       const d = snap.docs[0].data();
       const startedAt = d.start.toDate();
       const remaining = Math.floor((startedAt.getTime() + d.hours*3600000 - Date.now())/1000);
-      remaining>0 ? startCountdown(remaining, snap.docs[0].id) : snap.docs[0].ref.delete();
+      if (remaining > 0) startCountdown(remaining, snap.docs[0].id);
+      else snap.docs[0].ref.delete().catch(() => {});
     })();
 
     function resetParkingUi() {
@@ -1770,7 +1825,6 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
     formFields.appendChild(lo);
   }
 }
-
 
 
 

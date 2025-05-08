@@ -269,9 +269,15 @@ def process(plate: str, citation: str):
                             dbg(f"‼ email error → {p['email']}: {e}")
         _process_related(done, plate, tickets_data)
         return True, tickets_data
+
     except Exception as e:
         dbg(f"‼ Error processing {tid}: {e}")
+        msg = str(e)
+        # If Selenium aborted by navigation or we're already scraped, treat as success
+        if "aborted by navigation" in msg or tid in scraped:
+            return True, []
         return False, []
+
 
 def check_parked_users(col: str = "parked_users"):
     global parkers
@@ -345,6 +351,9 @@ def check_parked_users(col: str = "parked_users"):
     dbg("------ parked_users check complete ------")
 
 
+
+
+
 def precheck_new_users(col: str = "new_users"):
     dbg("------ Checking new_users for fresh submissions ------")
     try:
@@ -353,7 +362,7 @@ def precheck_new_users(col: str = "new_users"):
         dbg(f"‼ new_users check skipped – permission denied: {e.message}")
         return
 
-    # load existing lines so we don’t duplicate in main.txt
+    now = dt.datetime.now(utc_tz())
     existing = set()
     if MAIN_PATH.exists():
         existing = {
@@ -365,67 +374,87 @@ def precheck_new_users(col: str = "new_users"):
     new_lines = []
     for doc in docs:
         d = doc.to_dict() or {}
-        plate    = (d.get("licensePlate") or "").strip()
-        citation = (d.get("citationNumber") or "").strip()
-        email    = (d.get("email") or "").strip()
-        full     = (d.get("fullName") or "").strip()
-        uid      = email or plate or doc.id
+        plate      = (d.get("licensePlate") or "").strip()
+        citation   = (d.get("citationNumber") or "").strip().upper()
+        timestamp  = d.get("timestamp")
+        valid_flag = d.get("valid")
 
-        # basic validation
-        if not (plate and citation):
-            dbg(f"⚠ Malformed new_users entry, deleting: {doc.id}")
-            doc.reference.delete()
+        ts = timestamp.replace(tzinfo=utc_tz()) if timestamp else now
+
+        if valid_flag is False:
+            age = (now - ts).total_seconds() / 86400
+            if age > 3:
+                doc.reference.delete()
+                dbg(f"Removed expired invalid entry: {citation}")
+            else:
+                dbg(f"Ignoring recent invalid entry: {citation}")
             continue
 
-        # attempt to scrape/process
+        if not (plate and citation):
+            age = (now - ts).total_seconds() / 86400
+            if age > 3:
+                doc.reference.delete()
+                dbg(f"Removed malformed entry older than 3 days: {citation}")
+            else:
+                doc.reference.update({"valid": False})
+                dbg(f"Marked entry invalid: {citation}")
+            continue
+
         try:
             ok, tickets = process(plate, citation)
         except Exception as e:
-            dbg(f"‼ Unexpected error processing {citation}: {e}")
-            # remove bad entry
-            doc.reference.delete()
+            age = (now - ts).total_seconds() / 86400
+            if age > 3:
+                doc.reference.delete()
+                dbg(f"Removed errored entry older than 3 days: {citation}")
+            else:
+                doc.reference.update({"valid": False})
+                dbg(f"Marked entry invalid after error: {citation}")
             continue
 
-        # if process failed or returned no tickets, drop it
-        if not ok or not tickets:
-            dbg(f"ℹ No tickets found for {citation}, removing request.")
-            doc.reference.delete()
+        if ok and not tickets and citation in scraped:
+            tickets = []
+        elif not ok or not tickets:
+            age = (now - ts).total_seconds() / 86400
+            if age > 3:
+                doc.reference.delete()
+                dbg(f"Removed no-tickets entry older than 3 days: {citation}")
+            else:
+                doc.reference.update({"valid": False})
+                dbg(f"Marked entry invalid (no tickets): {citation}")
             continue
 
-        # ---- at this point we have >=1 ticket in `tickets` ----
-
-        # merge into current_users
         try:
-            db.collection("current_users") \
-              .document(uid.upper()) \
-              .set({
-                  "fullName": full,
-                  "email": email,
-                  "licensePlate": plate,
-                  "tickets": firestore.ArrayUnion(*tickets),
-                  "lastUpdated": firestore.SERVER_TIMESTAMP
-              }, merge=True)
+            uid = (d.get("email") or plate or doc.id).upper()
+            update_data = {
+                "fullName":      d.get("fullName", ""),
+                "email":         d.get("email", ""),
+                "licensePlate":  plate,
+                "lastUpdated":   firestore.SERVER_TIMESTAMP
+            }
+            if tickets:
+                update_data["tickets"] = firestore.ArrayUnion(*tickets)
+            db.collection("current_users").document(uid).set(update_data, merge=True)
         except Exception as e:
             dbg(f"‼ Firestore write failed for {citation}: {e}")
-            # do not delete the request so we can retry
             continue
 
-        # append to main.txt if new
-        line = f"{citation.upper()},{plate}"
+        line = f"{citation},{plate}"
         if line.upper() not in existing:
             new_lines.append(line)
             existing.add(line.upper())
 
-        # finally remove from new_users
         doc.reference.delete()
+        dbg(f"Processed and removed new_users entry: {citation}")
 
-    # write any new main.txt lines
     if new_lines:
         with MAIN_PATH.open("a", encoding="utf-8") as f:
             f.write("\n".join(new_lines) + "\n")
         dbg(f"Added {len(new_lines)} ticket(s) from new_users to main.txt")
 
     dbg("------ new_users check complete ------")
+
+
 
 
 def transfer_firestore_to_main(col: str = "bruh"):
@@ -470,11 +499,13 @@ def scrape_main():
     for ln in rows:
         citation, plate = (p.strip() for p in ln.split(",", 1))
         ok, _ = process(plate, citation)
-        if ok:
+        # keep if it succeeded OR if we've already scraped that citation
+        if ok or citation in scraped:
             valid.append(ln)
         else:
             dbg(f"Removed invalid entry from main.txt: {ln}")
     _rewrite_main(valid)
+
 
 def run_cycle():
     check_parked_users()
