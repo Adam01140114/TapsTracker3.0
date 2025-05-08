@@ -5,21 +5,16 @@
 <html>
   <head>
     <link rel="stylesheet" href="style.css" />
+<!-- put this in your <head> instead of the old links -->
 
-    <link
-      href="https://fonts.googleapis.com/css?family=Bellota Text"
-      rel="stylesheet"
-    />
-    <link
-      href="https://fonts.googleapis.com/css?family=Fugaz One"
-      rel="stylesheet"
-    />
+
 	
 <script async
           src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD27CKLddswkn-DTg6anVo8BaRWUZJrHao&libraries=directions"
           onload="if(typeof allSightings !== 'undefined') initMap();">
   </script>
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500&display=swap" rel="stylesheet">
 
 <style>
         /* Make dropdown text bold */
@@ -231,7 +226,7 @@
             /* Ensure the background covers the entire page */
             min-height: 100vh;
             /* Font settings for body text */
-            font-family: Arial, sans-serif;
+            font-family: 'Rubik', sans-serif;
             margin: 0;
             padding: 0;
             display: flex;
@@ -371,10 +366,15 @@
 }
 
 .gm-style-iw div {
-  font-family: Arial, sans-serif;
+  font-family: 'Rubik', sans-serif;
   font-size: 14px;
   line-height: 1.4;
     }
+#parkingSection h1 {
+  font-size: 36px !important;
+  font-weight: bold;
+  margin: 0 0 10px 0;
+}
 
 
     </style>
@@ -384,7 +384,12 @@
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 	
 
-    
+   <style>
+  html {
+    font-display: swap;
+  }
+</style>
+ 
 
   </head>
 
@@ -476,12 +481,66 @@
 
 
 
+<br>
 
-<br><br>
+		
 
-			
+<div id="report2" class="map-section">
+    
+	<h1 id="recentHeader"><center>Recent Citations</center></h1>
+	<center>
+	<div id="map"></div>
+    <div id="locations"></div>
+    
+    
+    
+    
+    
+    <!-- <div id="forecastMap" class="map"></div>	-->
+    
+    <center>
+    <br>
+
+    
+    <center>	
+    <div id="sightingsContainer"style="display:none"></div>
+    <br>
+	
+	 <button id="toggleSightingsButton" onclick="toggleSightingsDisplay()"style="display:none"> Show More</button>
+    </div>
+    </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
 			<!-- Add this section to your HTML where you want the prediction interface to appear -->
-<div id="predictionSection">
+<div id="predictionSection" style="display:none">
 
 <center>
 <br>
@@ -535,33 +594,6 @@
 	
 </div>
 
-<div id="report2" class="map-section">
-    <br>
-	<h1 id="recentHeader"><center>Recent Citations</center></h1>
-	<center>
-	<div id="map"></div>
-    <div id="locations"></div>
-    
-    
-    
-    
-    
-    <!-- <div id="forecastMap" class="map"></div>	-->
-    
-    <center>
-    <br>
-
-    
-    <center>	
-    <div id="sightingsContainer"></div>
-    <br>
-	
-	 <button id="toggleSightingsButton" onclick="toggleSightingsDisplay()"> Show More</button>
-    </div>
-    </div>
-    </div>
-
-
-<script src="script.js"></script>
+<script src="hello.js"></script>
 	
 

@@ -1312,7 +1312,7 @@ const lastName  = getCookie('userFullName')
     <br><br><input type="email" id="signupEmail" placeholder="Email" value="${email}" style="margin-bottom:10px;width:80%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br>
     <input type="text" id="signupLicensePlate" placeholder="License Plate" value="${licensePlate}" style="margin-bottom:10px;width:80%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br><br>
     <br><br><input type="password" id="signupPassword" placeholder="Password" value="${password}" style="margin-bottom:10px;width:80%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br>
-    <input type="password" id="signupConfirmPassword" placeholder="Confirm Password" value="${password}" style="margin-bottom:10px;width:80%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br><br>
+    <input type="password" id="signupConfirmPassword" placeholder="Confirm Password" value="${password}" style="margin-bottom:10px;width:80%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br>
   `;
   document.getElementById('signUpButton').style.display = '';
   document.getElementById('signUpButton').innerHTML = '<h3>Sign&nbsp;Up</h3>';
@@ -1585,9 +1585,9 @@ function showAccountSection(fullName, licensePlate, finishedSetup = '') {
   formFields.innerHTML = `
     <!-- 🚗 NEW parking section goes here -->
     <div id="parkingSection">
-   
-            <b><h1>Park youTAPS is nearby</h1></b>
-  
+        <p style="font-size:25px;margin:6px 0;">
+            <b>Park your car and receive live alerts when TAPS is nearby</b>
+        </p>
         <br><button id="parkButton" class="action-btn">Park</button>
     </div><br>
 
@@ -1611,15 +1611,15 @@ function showAccountSection(fullName, licensePlate, finishedSetup = '') {
 
     function startParkingPrompt () {
       parkingDiv.innerHTML = `
-        <label><b>Choose your location</b></label><br>
+        </b><label><h1>Choose your location</h1></label>
         <select id="parkLocation" style="width:80%;height:40px;
-                 margin:6px 0;text-align-last:center;border-radius:20px;"></select><br><br><br>
-        <label><b><br>How many hours?</b></label><br>
+                 margin:6px 0;text-align-last:center;border-radius:20px;"></select><br><br>
+        <br><label><h1>How many hours?</h1></label>
         <input type="number" id="parkHours" min="1" max="24" value="2"
                style="width:120px;height:40px;font-size:18px;text-align:center;
-                      border-radius:20px;margin:6px 0;"><br><br>
+                      border-radius:20px;margin:6px 0;"><br><br><br>
         <button id="confirmPark" class="action-btn">Park</button>
-        <center><br><button id="cancelPark"  class="action-btn" >Cancel</button><br>
+        <center><br><button id="cancelPark"  class="action-btn" >Cancel</button>
       `;
       populateParkDropdown();
       document.getElementById('confirmPark').onclick = confirmParking;
@@ -1627,39 +1627,86 @@ function showAccountSection(fullName, licensePlate, finishedSetup = '') {
     }
 
     function populateParkDropdown () {
-      const sel = document.getElementById('parkLocation');
-      sel.innerHTML = '';
-      /* re‑use the already‑built prediction dropdown as source */
-      document
-        .querySelectorAll('#predictionLocation option')
-        .forEach(o => sel.appendChild(o.cloneNode(true)));
-    }
+  const sel = document.getElementById('parkLocation');
+  sel.innerHTML = '';
+
+  // Add "Current Location" option
+  const currentOpt = document.createElement('option');
+  currentOpt.value = '__CURRENT_LOCATION__';
+  currentOpt.textContent = 'Current Location';
+  sel.appendChild(currentOpt);
+
+  // Clone options from #predictionLocation
+  document.querySelectorAll('#predictionLocation option')
+          .forEach(o => sel.appendChild(o.cloneNode(true)));
+}
+
 
     async function confirmParking () {
-      const loc   = document.getElementById('parkLocation').value;
-      const hours = parseInt(document.getElementById('parkHours').value, 10);
-      if (!hours || hours < 1) { alert('Enter a valid number of hours'); return; }
+  const loc   = document.getElementById('parkLocation').value;
+  const hours = parseInt(document.getElementById('parkHours').value, 10);
+  if (!hours || hours < 1) {
+    alert('Enter a valid number of hours');
+    return;
+  }
 
-      /* write an entry to /parked_users */
-      const user  = firebase.auth().currentUser || {};
-      const email = user.email || getCookie('userEmail') || '';
-      const name  = fullNameFromProfile || getCookie('userFullName') || '';
+  const user  = firebase.auth().currentUser || {};
+  const email = user.email || getCookie('userEmail') || '';
+  const name  = getCookie('userFullName') || '';
 
-      const docRef = await db.collection('parked_users').add({
-        email, fullName: name, location: loc, hours,
+  if (loc === '__CURRENT_LOCATION__') {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported on this device.');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(async position => {
+      const coords = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude
+      };
+
+      await db.collection('parked_users').add({
+        email,
+        fullName: name,
+        location: 'Current Location',
+        coords,
+        hours,
         start: firebase.firestore.FieldValue.serverTimestamp()
       });
 
-      startCountdown(hours * 3600, docRef.id);       // jump to live state
-    }
+      startCountdown(hours * 3600); // Continue as usual
+
+    }, error => {
+      alert('Could not get location: ' + error.message);
+    });
+
+    return; // Exit to prevent continuing without location
+  }
+
+  // Default behavior for named locations
+  await db.collection('parked_users').add({
+    email,
+    fullName: name,
+    location: loc,
+    hours,
+    start: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  startCountdown(hours * 3600);
+}
+
 
     /* ❷ Live “Scanning” state */
     let timerId = null;
 
     function startCountdown (seconds, docId) {
       parkingDiv.innerHTML = `
-        <p style="font-size:18px;margin:6px 0;"><b>Scanning for TAPS</b></p>
+        <p style="font-size:25px;margin:6px 0;"><b>Scanning for TAPS</b></p>
+		
         <div id="countdown" style="font-size:24px;margin:6px 0;"></div>
+		
+		<br><p style="font-size:25px;margin:6px 0;"><b>Check your email for live alerts</b></p>
         <button id="stopPark" class="action-btn">Stop</button><br>
       `;
       updateCountdown(seconds);
@@ -1712,9 +1759,9 @@ function showAccountSection(fullName, licensePlate, finishedSetup = '') {
     /* helper resets to idle state */
     function resetParkingUi () {
       parkingDiv.innerHTML = `
-
-          <b><h1>Park your y</h1></b>
-      
+        <p style="font-size:25px;margin:0px 0;">
+          <b>Park your car and receive live alerts when TAPS is nearby</b>
+        </p>
         <br><button id="parkButton" class="action-btn">Park</button>
       `;
       document.getElementById('parkButton').onclick = startParkingPrompt;
@@ -1756,7 +1803,7 @@ function showAccountSection(fullName, licensePlate, finishedSetup = '') {
     lo.id = 'logoutButton';
     lo.textContent = 'Log Out';
     lo.style.cssText =
-      'margin-top:50px;width:200px;height:50px;font-size:20px;border-radius:20px;';
+      'margin-top:40px;width:200px;height:50px;font-size:20px;border-radius:20px;';
     lo.onclick = logout;
     formFields.appendChild(lo);
   }
