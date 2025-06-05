@@ -46,6 +46,7 @@ MAIN_PATH   = BASE / "main.txt"
 SCRAPED_TXT = BASE / "public" / "scraped.txt"
 PARKED_TXT  = BASE / "parked.txt"
 LOC_TXT     = BASE / "location.txt"
+VALIDATE_PATH = BASE / "validate.txt"
 
 # load static campus‐location → coords
 with LOC_TXT.open(encoding="utf-8") as f:
@@ -104,7 +105,13 @@ def get_coords(loc: str):
                 return coords
     return None
 
-def send_alert(to_email: str, to_name: str, p_loc: str, t_loc: str, dist_ft: float):
+def send_alert(to_email: str, to_name: str, p_loc: str, t_loc: str, dist_ft: float, ticket_date=None):
+    # Only send alert if ticket_date is today
+    if ticket_date is not None:
+        today = dt.datetime.now(utc_tz()).date()
+        if ticket_date != today:
+            dbg(f"Not sending alert to {to_email} because ticket is not from today.")
+            return
     msg = EmailMessage()
     msg["From"]    = GMAIL_USER
     msg["To"]      = to_email
@@ -179,20 +186,14 @@ def save_ticket(tid: str, loc: str, when: str):
     # Check if time has AM/PM indicator
     if len(when.split()) > 2:
         am_pm = when.split()[2].upper()
-        # Parse hours and minutes
         hours, minutes = map(int, clock.split(':'))
-        # Convert to 24-hour format if PM
         if am_pm == 'PM' and hours < 12:
             hours += 12
-        # Convert to 24-hour format if AM and hour is 12
         elif am_pm == 'AM' and hours == 12:
             hours = 0
-        # Format to 24-hour time string
         clock = f"{hours:02d}{minutes:02d}"
     else:
-        # If no AM/PM indicator, just remove the colon
         clock = clock.replace(":", "")
-    
     m, d, y = map(int, date.split("/"))
     with SCRAPED_TXT.open("a", encoding="utf-8") as f:
         f.write(f'"{tid.upper()},{loc},{clock},{m}/{d}/{y}",\n')
@@ -202,7 +203,6 @@ def save_ticket(tid: str, loc: str, when: str):
     today = dt.datetime.now(utc_tz()).date()
     ticket_date = dt.date(y, m, d)
     if ticket_date == today:
-        # Find user(s) with this license plate in current_users
         try:
             users = db.collection("current_users").where("licensePlate", "==", tid).stream()
             for user_doc in users:
@@ -268,6 +268,8 @@ def _process_related(done: set, plate: str, tkts: list):
                 coords = get_coords(loc)
                 if coords:
                     t_lat, t_lng = coords
+                    m, d, y = map(int, when.split()[0].split("/"))
+                    ticket_date = dt.date(y, m, d)
                     for p in parkers:
                         if dt.datetime.now(utc_tz()) > p["ts_end"]:
                             continue
@@ -276,7 +278,7 @@ def _process_related(done: set, plate: str, tkts: list):
                             try:
                                 send_alert(
                                     p["email"], p["full"],
-                                    p["loc_name"], loc, dist_ft
+                                    p["loc_name"], loc, dist_ft, ticket_date=ticket_date
                                 )
                             except Exception as e:
                                 dbg(f"‼ email error → {p['email']}: {e}")
@@ -558,10 +560,18 @@ def transfer_firestore_to_main(col: str = "bruh"):
     dbg("------ transfer complete ------")
 
 def _rewrite_main(rows):
+    # Remove duplicates (case-insensitive)
+    seen = set()
+    unique_rows = []
+    for row in rows:
+        key = row.strip().upper()
+        if key not in seen:
+            seen.add(key)
+            unique_rows.append(row)
     tmp = MAIN_PATH.with_suffix(".tmp")
-    tmp.write_text("\n".join(rows) + ("\n" if rows else ""))
+    tmp.write_text("\n".join(unique_rows) + ("\n" if unique_rows else ""))
     tmp.replace(MAIN_PATH)
-    dbg(f"Re-wrote main.txt → kept {len(rows)} valid rows")
+    dbg(f"Re-wrote main.txt → kept {len(unique_rows)} valid rows (deduplicated)")
 
 def scrape_main():
     if not MAIN_PATH.exists():
@@ -577,6 +587,9 @@ def scrape_main():
             valid.append(ln)
         else:
             dbg(f"Removed invalid entry from main.txt: {ln}")
+            # Append to validate.txt
+            with VALIDATE_PATH.open("a", encoding="utf-8") as vf:
+                vf.write(ln + "\n")
     _rewrite_main(valid)
 
 
@@ -601,6 +614,20 @@ def run_cycle():
     except subprocess.CalledProcessError as e:
         dbg(f"‼ Firebase deploy failed (exit {e.returncode}):\n{e.stderr}")
 
+def print_ticket_and_user_stats():
+    # Print number of tickets in scraped.txt
+    if SCRAPED_TXT.exists():
+        num_tickets = sum(1 for _ in SCRAPED_TXT.read_text("utf-8").splitlines() if _.strip())
+    else:
+        num_tickets = 0
+    # Print number of users in main.txt
+    if MAIN_PATH.exists():
+        num_users = sum(1 for _ in MAIN_PATH.read_text("utf-8").splitlines() if _.strip())
+    else:
+        num_users = 0
+    dbg(f"Loaded {num_tickets} tickets already in scraped.txt")
+    dbg(f"Total users: {num_users}")
+
 if __name__ == "__main__":
     while not _stop.is_set():
         run_cycle()
@@ -608,6 +635,7 @@ if __name__ == "__main__":
             dbg(f"Next cycle starts in {remaining} second{'s' if remaining != 1 else ''}…")
             time.sleep(1)
         dbg("Here we go again baby!")
+        print_ticket_and_user_stats()
 
     driver.quit()
     dbg("Chrome closed ✔")
