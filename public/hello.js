@@ -1,10 +1,7 @@
-	
-	
-
 /* ────────────────────────────────────────────────────────────── *
  *  1.  renderUserTickets                                         *
- *      – draws the user’s saved citation list                    *
- *      – handles “Show More / Show Less” toggle                  *
+ *      – draws the user's saved citation list                    *
+ *      – handles "Show More / Show Less" toggle                  *
  * ────────────────────────────────────────────────────────────── */
 function renderUserTickets(tickets) {
   tickets.sort((a, b) => new Date(b.issueDate) - new Date(a.issueDate));
@@ -87,12 +84,20 @@ async function loadUserTickets (email) {
 	let map;                // globally visible
   const markers = [];     // keep references so we can clear them later
 
+/**
+ * Initialize the map showing only the most-recent sighting,
+ * then wire up a More/Back button to toggle to three pins + show the sightings list.
+ */
+/**
+ * Initialize the map showing only the most-recent sighting,
+ * then wire up a More/Back button to toggle to three pins + show the sightings list.
+ */
 function initMap() {
-  // 1️⃣ Create the map without hard-coded center/zoom
-  const map = new google.maps.Map(document.getElementById("map"), {
-    center: { lat: 0, lng: 0 },
-    zoom: 2,
-    mapTypeId: "roadmap",
+  // 1️⃣ create the map
+  map = new google.maps.Map(document.getElementById("map"), {
+    center:   { lat: 0, lng: 0 },
+    zoom:     1,
+    mapTypeId:"roadmap",
     styles: [{
       featureType: "poi",
       elementType: "labels",
@@ -100,109 +105,45 @@ function initMap() {
     }],
   });
 
-  // 2️⃣ Optional: keep your user-location pin
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(pos => {
-      new google.maps.Marker({
-        position: {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude
-        },
-        map,
-        title: "Your Location",
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 8,
-          fillColor: "#4285F4",
-          fillOpacity: 1,
-          strokeColor: "#FFFFFF",
-          strokeWeight: 2
-        }
-      });
-    });
-  }
-
-  // 3️⃣ Sort & pick three most-recent unique sightings
-  const sorted = [...allSightings].sort((a, b) =>
-    new Date(b.time_exact) - new Date(a.time_exact)
+  // 2️⃣ setup Street View but keep it hidden
+  panorama = new google.maps.StreetViewPanorama(
+    document.getElementById("map"), {
+      position: { lat: 0, lng: 0 },    // will be updated per-pin
+      pov:      { heading: 0, pitch: 0 },
+      visible:  false
+    }
   );
-  const seen = new Set();
-  const pinsToShow = [];
-  for (let s of sorted) {
-    if (pinsToShow.length >= 3) break;
-    if (seen.has(s.college)) continue;
-    const coords = getLocationCoordinates(s.college);
-    if (!coords) continue;
-    seen.add(s.college);
-    pinsToShow.push({ sighting: s, coords });
-  }
+  map.setStreetView(panorama);
 
-  // 4️⃣ Build a bounds object to auto-fit
-  const bounds = new google.maps.LatLngBounds();
+  // 3️⃣ initial render: single most-recent pin
+  let showingAll = false;
+  renderMapPins(showingAll);
 
-  // 5️⃣ Place markers & extend bounds
-  const opacities = [1.0, 0.6, 0.3];
-  pinsToShow.forEach((item, idx) => {
-    const { sighting, coords } = item;
-    const when = new Date(sighting.time_exact);
-    when.setHours(when.getHours() + 7); // if you still need your offset
+  // 4️⃣ hide the sightings list by default
+  document.getElementById("sightingsContainer").style.display = "none";
 
-    const marker = new google.maps.Marker({
-      position: coords,
-      map,
-      opacity: opacities[idx],
-      title: `${sighting.college}\n${when.toLocaleDateString()} ${when.toLocaleTimeString()}`,
-      icon: {
-        url: 'pin.png',
-        scaledSize: new google.maps.Size(24, 36),
-        anchor: new google.maps.Point(12, 36),
-        labelOrigin: new google.maps.Point(12, 12),
-      },
-      optimized: false
-    });
-
-    marker.addListener("click", () => {
-      new google.maps.InfoWindow({
-        content: `<div><strong>${sighting.college}</strong><br>
-                  Date: ${when.toLocaleDateString()}<br>
-                  Time: ${when.toLocaleTimeString()}<br>
-                  Citation #: ${sighting.citationNumber}</div>`
-      }).open(map, marker);
-    });
-
-    bounds.extend(coords);
+  // 5️⃣ toggle button for list + extra pins
+  const toggleBtn = document.getElementById("toggleSightingsButton");
+  toggleBtn.textContent = "More";
+  toggleBtn.addEventListener("click", () => {
+    showingAll = !showingAll;
+    renderMapPins(showingAll);
+    document.getElementById("sightingsContainer").style.display = showingAll ? "block" : "none";
+    toggleBtn.textContent = showingAll ? "Back" : "More";
   });
 
-  // 6️⃣ Fit the map to those three markers
-  if (pinsToShow.length) {
-    map.fitBounds(bounds);
-  }
-
-  // 7️⃣ (Optional) If you still want the driving route between them:
-  if (pinsToShow.length === 3) {
-    const [oldest, middle, newest] = pinsToShow.slice().reverse();
-    const directionsService = new google.maps.DirectionsService();
-    const directionsRenderer = new google.maps.DirectionsRenderer({
-      map,
-      suppressMarkers: true,
-      polylineOptions: {
-        strokeColor: '#4285F4',
-        strokeOpacity: 1.0,
-        strokeWeight: 4
-      }
-    });
-
-    directionsService.route({
-      origin: oldest.coords,
-      destination: newest.coords,
-      waypoints: [{ location: middle.coords, stopover: true }],
-      travelMode: 'DRIVING'
-    }, (result, status) => {
-      if (status === 'OK') directionsRenderer.setDirections(result);
-      else console.warn('Directions request failed:', status);
-    });
-  }
+  // 6️⃣ Exit-Street-View button
+  document.getElementById("exitStreetViewBtn").addEventListener("click", () => {
+    panorama.setVisible(false);
+    document.getElementById("exitStreetView").style.display = "none";
+  });
 }
+
+
+// expose to window
+window.initMap = initMap;
+
+
 
 
   function getLocationCoordinates(location) {
@@ -302,8 +243,9 @@ function initMap() {
       }
     }
     
-    console.warn(`No coordinates found for location: ${location}`);
-    return null;
+    // Fallback: UCSC campus center if not found
+    console.warn(`No coordinates found for location: ${location}, using fallback.`);
+    return { lat: 36.9916, lng: -122.0583 };
   }
 
   // Load the map when the page loads
@@ -327,6 +269,7 @@ function init () {
   /* Wait for Firebase to tell us whether a user is already persisted    *
    * before we create a new anonymous one.                              */
   firebase.auth().onAuthStateChanged(async user => {
+    
     if (user) return;                       // a real account or anon already there
 
     try {
@@ -335,6 +278,8 @@ function init () {
     } catch (err) {
       console.warn('Anon sign‑in skipped:', err.code, err.message);
     }
+
+    refreshParkUi();   
   });
 }
 window.addEventListener('DOMContentLoaded', init);
@@ -348,7 +293,7 @@ var db = firebase.firestore();
 /* ───────── MASTER AUTH LISTENER ───────── */
 firebase.auth().onAuthStateChanged(async function (user) {
 
-  /* 0.  completely signed‑out ► reset UI */
+  /* 0.  completely signed-out ► reset UI */
   if (!user) {
     ['userFullName','userEmail','userLicensePlate','finishedSetup']
       .forEach(eraseCookie);
@@ -396,6 +341,16 @@ firebase.auth().onAuthStateChanged(async function (user) {
     console.error('Auth listener failed:', err);
     resetAccountSection();
   }
+
+  // Update Park section UI on auth state change
+  if (!user || user.isAnonymous) {
+    renderParkSection(false);
+  } else {
+    const snap = await db.collection('users').doc(user.uid).get();
+    const profile = snap.exists ? snap.data() : {};
+    const fullName = profile.fullName || '';
+    renderParkSection(true, fullName);
+  }
 });
 
 
@@ -416,38 +371,29 @@ var days = [
 
 
 
+// Defensive DOM access for timeOccurred and predictionTime
 window.addEventListener('DOMContentLoaded', (event) => {
     const now = new Date();
-
-    // Formatting for date-time input
     const formattedDate = now.getFullYear() + '-' +
         (now.getMonth() + 1).toString().padStart(2, '0') + '-' +
         now.getDate().toString().padStart(2, '0');
-
     const formattedTime = now.getHours().toString().padStart(2, '0') + ':' +
         now.getMinutes().toString().padStart(2, '0');
-
-    // Existing code to set the date
-    document.getElementById('timeOccurred').value = formattedDate + 'T' + formattedTime;
-
-    // New code to set the time
-    document.getElementById('predictionTime').value = formattedTime;
+    const timeOccurred = document.getElementById('timeOccurred');
+    if (timeOccurred) timeOccurred.value = formattedDate + 'T' + formattedTime;
+    const predictionTime = document.getElementById('predictionTime');
+    if (predictionTime) predictionTime.value = formattedTime;
 });
-
-
 
 window.addEventListener('DOMContentLoaded', (event) => {
     const now = new Date();
-
     const formattedDateTime = now.getFullYear() + '-' +
         (now.getMonth() + 1).toString().padStart(2, '0') + '-' +
         now.getDate().toString().padStart(2, '0') + 'T' +
         now.getHours().toString().padStart(2, '0') + ':' +
         now.getMinutes().toString().padStart(2, '0');
-
-    document.getElementById('timeOccurred').value = formattedDateTime;
-
-    // ...rest of your code
+    const timeOccurred = document.getElementById('timeOccurred');
+    if (timeOccurred) timeOccurred.value = formattedDateTime;
 });
 
 
@@ -568,6 +514,7 @@ function reportSighting(collegeName) {
 
 function populateLocationDropdown() {
     const selectElement = document.getElementById("collegeLocation");
+    if (!selectElement) return;
     colleges.forEach(college => {
         const option = document.createElement("option");
         option.value = college.name;
@@ -754,6 +701,7 @@ async function fetchSightings() {
     // 3️⃣ Refresh UI & map
     updateHeaderAndUI();
     if (window.google && google.maps) initMap();
+    // calculatePrediction(); // REMOVE THIS LINE
 
   } catch (err) {
     console.error('Error processing scraped.txt data:', err);
@@ -761,15 +709,15 @@ async function fetchSightings() {
 }
 
 function updateHeaderAndUI() {
-  // A) “Most recent”
+  // A) "Most recent"
   const sorted = [...allSightings].sort(
     (a, b) => new Date(b.time_exact) - new Date(a.time_exact)
   );
   const hdr = document.getElementById('recentHeader');
   if (hdr) {
     hdr.innerHTML = sorted.length
-      ? `<center>TAPS recently spotted at:<br><u>${sorted[0].college}</u></center>`
-      : `<center>No sightings yet</center>`;
+      ? `<center><h1 style="font-size:5vw">TAPS recently spotted at:<br></h1><h1 style="font-size:4vw"><b><u>${sorted[0].college}</u></b></center></h1>`
+      : `<h1><b><center>No sightings yet</center></b></h1>`;
   }
 
   // B) rebuild list + dropdown
@@ -958,13 +906,12 @@ function calculatePrediction() {
     const countCitationsAtLocationAndTime = citationsAtLocationAndTime.length;
     const percentChance = countCitationsAtLocation > 0 ? (countCitationsAtLocationAndTime / countCitationsAtLocation * 100).toFixed(2) : 0;
 
-    console.log(`Citations at ${selectedLocation} for the selected hour (${selectedHour}:00): ${countCitationsAtLocationAndTime}`);
-    console.log(`Your chances of getting a ticket are ${percentChance}%`);
+   
 
     let resultsHtml = ``;
 	//Total citations at ${selectedLocation}: ${countCitationsAtLocation}<br>`;
     //resultsHtml += `Citations at ${selectedLocation} for the selected hour (${selectedHour}:00): ${countCitationsAtLocationAndTime}<br>`;
-    resultsHtml += ` <br><h1> Your chances of getting a ticket are <b>${percentChance}%</b></h1>`;
+    resultsHtml += `<br><center> <br><br><br><br><h1> Your chances of getting a ticket are <b>${percentChance}%</b></h1>`;
 
     if (citationsAtLocation.length > 0) {
         resultsHtml += "<ul>";
@@ -1051,36 +998,27 @@ function displaySightings() {
 
         if (sighting.time_exact) {
             let sightingDateTime = new Date(sighting.time_exact);
-
-            // Add 8 hours to the time for display purposes only
             sightingDateTime.setHours(sightingDateTime.getHours() + 8);
-
-            const formattedDate = sightingDateTime.toLocaleDateString(); // e.g., 11/18/2019
+            const formattedDate = sightingDateTime.toLocaleDateString();
             const formattedTime = sightingDateTime.toLocaleTimeString('en-US', {
                 hour: 'numeric',
                 minute: 'numeric',
                 hour12: true
-            }); // e.g., 1:00 PM
-
+            });
             div.innerHTML = `
                 <center>
                 <div class="sighting-location">${sighting.college}</div>
                 <div>${formattedDate} (${formattedTime})</div>
-                
             `;
         } else {
             div.innerHTML = `
                 <center>
                 <div class="sighting-location">${sighting.college}</div>
                 <div>Invalid date format</div>
-                
             `;
         }
-
         container.appendChild(div);
     });
-
-    calculatePrediction(); // Ensure the prediction function doesn't apply the 8-hour shift
     document.getElementById("toggleSightingsButton").textContent = showingAllSightings ? "Show Less" : "Show More";
 }
 
@@ -1132,9 +1070,9 @@ function findNearby(position){
 
 /* ────────────────────────────────────────────────────────────── *
  *  3.  submitCitationSetup – single canonical version            *
- *      – shows “hang‑tight” instantly                            *
+ *      – shows "hang-tight" instantly                            *
  *      – pulls profile data from cookies or /users collection    *
- *      – writes request to /new_users for back‑end verification  *
+ *      – writes request to /new_users for back-end verification  *
  * ────────────────────────────────────────────────────────────── */
 async function submitCitationSetup () {
   const inputEl   = document.getElementById('citationNumberSetup');
@@ -1148,7 +1086,7 @@ async function submitCitationSetup () {
     return;
   }
 
-  /* instant “hang‑tight” UI */
+  /* instant "hang-tight" UI */
   if (promptEl) promptEl.innerHTML =
   '<br><br>Please give us a moment to verify your account…';
 
@@ -1381,7 +1319,7 @@ async function submitSignUp () {
 
     // 🔥 store extra profile data
    await db.collection('users').doc(user.uid).set({
-    fullName     : `${firstName} ${lastName}`,   // already title‑cased!
+    fullName     : `${firstName} ${lastName}`,   // already title-cased!
       email        : email,
       licensePlate : licensePlate
     });
@@ -1465,12 +1403,12 @@ function resetAccountSection() {
 
 
 
-// ── fill the “Choose your location” <select> in the park flow
+// ── fill the "Choose your location" <select> in the park flow
 function populateParkDropdown() {
   const select = document.getElementById('parkLocation');
   select.innerHTML = ''; 
 
-  // “Current Location” option
+  // "Current Location" option
   const cur = document.createElement('option');
   cur.value       = '__CURRENT_LOCATION__';
   cur.textContent = 'Current Location';
@@ -1484,6 +1422,130 @@ function populateParkDropdown() {
     select.appendChild(o);
   });
 }
+
+
+
+/**
+ * Render either the single most-recent sighting or the three most-recent unique sightings.
+ * @param {boolean} showAll  if true → up to 3 pins; if false → only the top-most pin
+ */
+function renderMapPins(showAll) {
+  // clear old markers
+  markers.forEach(m => m.setMap(null));
+  markers.length = 0;
+
+  // sort & pick
+  const sorted = [...allSightings].sort(
+    (a, b) => new Date(b.time_exact) - new Date(a.time_exact)
+  );
+  const seen = new Set();
+  const count = showAll ? 3 : 1;
+  const pinsToShow = [];
+  for (let s of sorted) {
+    if (pinsToShow.length >= count) break;
+    if (seen.has(s.college)) continue;
+    const coords = getLocationCoordinates(s.college);
+    if (!coords) continue;
+    seen.add(s.college);
+    pinsToShow.push({ sighting: s, coords });
+  }
+
+  // build bounds
+  const bounds = new google.maps.LatLngBounds();
+  let tempStreetViewPin = null; // for the temporary pin
+  pinsToShow.forEach(({ sighting, coords }) => {
+    const when = new Date(sighting.time_exact);
+    when.setHours(when.getHours() + 7);
+
+    const marker = new google.maps.Marker({
+      position: coords,
+      map,
+      opacity: 1.0,
+      title: `${sighting.college}\n${when.toLocaleDateString()} ${when.toLocaleTimeString()}`,
+      icon: {
+        url: 'pin.png',
+        scaledSize: new google.maps.Size(60, 100), // 60x100 pin
+        anchor:    new google.maps.Point(30, 100),
+        labelOrigin: new google.maps.Point(30, 30),
+      },
+      optimized: false
+    });
+
+    marker.addListener("click", () => {
+      // Check if Street View is available at this location
+      const svService = new google.maps.StreetViewService();
+      svService.getPanorama({ location: coords, radius: 50 }, (data, status) => {
+        let goThereButton = '';
+        if (status === google.maps.StreetViewStatus.OK) {
+          goThereButton = `<br><button class="sv-go-btn" style="display:flex; align-items:center; justify-content:center; font-size:1.8em; font-weight:bold; height:60px; min-width:120px; border-radius:12px; margin-top:12px; background:#007bff; color:#fff; border:none; cursor:pointer;">Go There</button>`;
+        }
+        const content = `
+          <div style=\"font-family: 'Roboto', sans-serif; text-align:center; padding: 12px 18px 8px 18px; min-width:220px;\">
+            <h3 style='font-size:2em; font-weight:bold; margin:0 0 8px 0;'>${sighting.college}</h3>
+            <div style='font-size:1.7em; font-weight:bold; margin:0 0 4px 0;'>Date: ${when.toLocaleDateString()}</div>
+            <div style='font-size:1.7em; font-weight:bold; margin:0 0 8px 0;'>Time: ${when.toLocaleTimeString()}</div>
+            ${goThereButton}
+            <div style=\"height:24px;\"></div>
+          </div>`;
+        const infoWindow = new google.maps.InfoWindow({ content });
+        infoWindow.open(map, marker);
+
+        // once the DOM is ready, hook up the Go There button if it exists
+        google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
+          const btn = document.querySelector('.sv-go-btn');
+          if (btn) {
+            btn.addEventListener('click', () => {
+              // Drop a temporary pin at this location
+              if (window._tempStreetViewPin) {
+                window._tempStreetViewPin.setMap(null);
+                window._tempStreetViewPin = null;
+              }
+              window._tempStreetViewPin = new google.maps.Marker({
+                position: coords,
+                map: map,
+                icon: {
+                  url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
+                  scaledSize: new google.maps.Size(50, 75),
+                  anchor: new google.maps.Point(25, 75),
+                },
+                zIndex: 9999
+              });
+              panorama.setPosition(coords);
+              panorama.setPov({ heading: 270, pitch: 0 });
+              panorama.setVisible(true);
+              document.getElementById('exitStreetView').style.display = '';
+            });
+          }
+        });
+      });
+    });
+
+    markers.push(marker);
+    bounds.extend(coords);
+  });
+
+  // fit or center
+  if (showAll) {
+    map.fitBounds(bounds);
+  } else if (pinsToShow.length === 1) {
+    map.setCenter(bounds.getCenter());
+    map.setZoom(17);
+  }
+
+  // Handle exit button to remove temp pin and hide street view
+  const exitBtn = document.getElementById('exitStreetViewBtn');
+  if (exitBtn) {
+    exitBtn.onclick = function() {
+      panorama.setVisible(false);
+      document.getElementById('exitStreetView').style.display = 'none';
+      if (window._tempStreetViewPin) {
+        window._tempStreetViewPin.setMap(null);
+        window._tempStreetViewPin = null;
+      }
+    };
+  }
+}
+
 
 
 
@@ -1548,14 +1610,14 @@ window.addEventListener('DOMContentLoaded', async function() {
     return;
   }
 
-  /* ──  ✱  Immediately swap UI to a “hang‑tight” message  ─────────── */
+  /* ──  ✱  Immediately swap UI to a "hang-tight" message  ─────────── */
   if (setupPrompt) {
     setupPrompt.innerHTML = 'Please give us a moment to verify your account…';
   }
   document.getElementById('citationNumberSetup').remove();   // or .style.display = 'none';
   document.getElementById('submitCitationSetup').remove();    // ditto
 
-  /*  store the request and wait for the back‑end to confirm later */
+  /*  store the request and wait for the back-end to confirm later */
   const email = firebase.auth().currentUser?.email || getCookie('userEmail') || '';
   try {
     await db.collection('new_users').add({
@@ -1565,12 +1627,12 @@ window.addEventListener('DOMContentLoaded', async function() {
       email,
       timestamp: firebase.firestore.FieldValue.serverTimestamp()
     });
-    /* when your verification webhook runs, it should flip the user’s
-       “finishedSetup” flag and the normal auth listener will rebuild the
+    /* when your verification webhook runs, it should flip the user's
+       "finishedSetup" flag and the normal auth listener will rebuild the
        section without the prompt. */
   } catch (e) {
     alert('Error submitting citation: ' + e.message);
-    // optional: roll back the UI if you’d like
+    // optional: roll back the UI if you'd like
   }
 };
 })
@@ -1710,8 +1772,8 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
   setupPrompt.style.display = 'none';
   formFields.innerHTML = `
     <div id="parkingSection">
-      <p style="font-size:30px;margin:6px 0;">
-        <b>Park your car and receive live alerts when TAPS is nearby</b>
+      <p style="font-size:30px;margin:6px 0; font-weight:normal;"><br>
+        Park your car and receive live alerts when TAPS is nearby
       </p><br><br>
       <button id="parkButton" class="action-btn">Park</button>
     </div><br>
@@ -1726,6 +1788,7 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
 
     function startParkingPrompt() {
       parkingDiv.innerHTML = `
+	  
         <label><h1>Choose your location</h1></label>
         <select id="parkLocation" style="width:80%;height:50px;margin:6px 0;text-align-last:center;border-radius:20px;font-size:22px;"></select><br><br>
         <label><h1>For how many hours?</h1></label>
@@ -1764,10 +1827,12 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
     let timerId;
     function startCountdown(seconds, docId) {
       parkingDiv.innerHTML = `
+	  
+	  <div id="scan" ><br><br>
         <p style="font-size:30px;margin:6px 0;"><b>Scanning for TAPS</b></p><br>
         <div id="countdown" style="font-size:30px;margin:6px 0;"></div>
-        <p style="font-size:30px;margin:6px 0;"><b>Check your email for live alerts</b></p><br>
-        <button id="stopPark" class="action-btn">Stop</button>
+        <br><p style="font-size:30px;margin:6px 0;"><b>Check your email for live alerts</b></p><br>
+        <button id="stopPark" class="action-btn" style="font-size:3vw">Stop</button></div><br><br>
       `;
       updateCountdown(seconds);
       timerId = setInterval(() => {
@@ -1804,7 +1869,7 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
 
     function resetParkingUi() {
       parkingDiv.innerHTML = `
-        <p style="font-size:30px;margin:0;"><b>Park your car and receive live alerts when TAPS is nearby</b></p><br>
+        <p style="font-size:30px;margin:0;">Park your car and receive live alerts when TAPS is nearby</p><br>
         <button id="parkButton" class="action-btn">Park</button>
       `;
       document.getElementById('parkButton').onclick = startParkingPrompt;
@@ -1827,4 +1892,257 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
 }
 
 
+
+
+window.showSignUpForm = showSignUpForm;
+window.showLoginForm = showLoginForm;
+window.resetAccountSection = resetAccountSection;
+
+
+
+
+window.addEventListener('DOMContentLoaded', function() {
+  renderParkSection(false);
+});
+
+
+//alert("Hello! I am an alert box!!");
+
+function renderParkSection(isLoggedIn, userName) {
+  console.log('renderParkSection called', { isLoggedIn, userName });
+  const parkSection = document.getElementById('parkDynamicSection');
+  if (!parkSection) return;
+  if (!isLoggedIn) {
+    parkSection.innerHTML = `
+      <div id="accountSection" class="account-create-section">
+        <h1><b><u>Create an Account</u></b></h1><br>
+        <p style="font-size:30px;margin-top:-8px;"><br>
+          Make an account to get <b>live alerts</b> when TAPS is near your car.
+        </p><br><br>
+        <div id="accountFormFields"></div>
+        <button id="signUpButton" onclick="showSignUpForm()"><h3>Sign&nbsp;Up</h3></button>
+        <br>
+        <button id="loginButton" onclick="showLoginForm()"><h3>Log&nbsp;In</h3></button><br><br>
+      </div>
+    `;
+  } else {
+    // Show the initial Park button
+    parkSection.innerHTML = `
+      <div id="accountSection"  style="border: 4px solid #6bc1fa; border-radius: 24px; padding: 24px 16px; background: #fff; box-sizing: border-box; width: 90%; margin: 0 auto 24px auto;">
+        <h1  style="font-size:5vw"><b>Welcome, <u>${userName}</u></b></h1>
+        <br>
+        <div id="parkingSection">
+          <p style="font-size:30px;margin:6px 0; font-weight:normal;"><br>
+            Park your car and receive live alerts when TAPS is nearby
+          </p><br><br>
+          <button id="parkButton" class="action-btn">Park</button>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:16px; margin-top:32px;">
+          <br><button class="action-btn" onclick="logout()" style="font-size:3vw">Log Out</button><br>
+        </div>
+      </div>
+    `;
+
+    // Attach the full dynamic parking UI logic
+    (function initParkingBlock() {
+      const parkingDiv = document.getElementById('parkingSection');
+      const parkBtn    = document.getElementById('parkButton');
+      if (parkBtn) parkBtn.onclick  = startParkingPrompt;
+
+      function startParkingPrompt() {
+        parkingDiv.innerHTML = `
+          <label><h1>Choose your location</h1></label>
+          <select id="parkLocation" style="width:80%;height:50px;margin:6px 0;text-align-last:center;border-radius:20px;font-size:22px;"></select><br><br>
+          <label><h1>For how many hours?</h1></label>
+          <input type="number" id="parkHours" min="1" max="24" value="2" style="width:120px;height:40px;font-size:22px;text-align:center;border-radius:20px;margin:6px 0;"><br><br>
+          <br><button id="confirmPark" class="action-btn">Park</button><br>
+          <button id="cancelPark" class="action-btn">Cancel</button>
+        `;
+        populateParkDropdown();
+        document.getElementById('confirmPark').onclick = confirmParking;
+        document.getElementById('cancelPark').onclick  = resetParkingUi;
+      }
+
+      async function confirmParking() {
+        const loc   = document.getElementById('parkLocation').value;
+        const hours = parseInt(document.getElementById('parkHours').value, 10);
+        if (!hours || hours < 1) return alert('Enter a valid number of hours');
+        const name  = getCookie('userFullName') || '';
+        const user  = firebase.auth().currentUser || {};
+        const email = user.email || getCookie('userEmail') || '';
+        if (loc === '__CURRENT_LOCATION__') {
+          if (!navigator.geolocation) return alert('Geolocation not supported.');
+          return navigator.geolocation.getCurrentPosition(async pos => {
+            const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            const doc = await db.collection('parked_users').add({
+              email, fullName: name, location: 'Current Location', coords, hours,
+              start: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            startCountdown(hours * 3600, doc.id);
+          }, err => alert('Location error: ' + err.message), { enableHighAccuracy: true, maximumAge: 10000 });
+        }
+        const doc = await db.collection('parked_users').add({
+          email, fullName: name, location: loc, hours,
+          start: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        startCountdown(hours * 3600, doc.id);
+      }
+
+      let timerId;
+      function startCountdown(seconds, docId) {
+        parkingDiv.innerHTML = `
+           <div id="scan" ><br><br>
+        <p style="font-size:30px;margin:6px 0;"><b>Scanning for TAPS</b></p><br>
+        <div id="countdown" style="font-size:30px;margin:6px 0;"></div>
+        <br><p style="font-size:30px;margin:6px 0;"><b>Check your email for live alerts</b></p><br>
+        <button id="stopPark" class="action-btn" style="font-size:3vw">Stop</button></div><br><br>
+      `;
+        updateCountdown(seconds);
+        timerId = setInterval(() => {
+          seconds-- <= 0 ? stopParking(docId) : updateCountdown(seconds);
+        }, 1000);
+        document.getElementById('stopPark').onclick = () => stopParking(docId);
+      }
+
+      function updateCountdown(sec) {
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60).toString().padStart(2,'0');
+        const s = (sec % 60).toString().padStart(2,'0');
+        document.getElementById('countdown').textContent = `${h}:${m}:${s}`;
+      }
+
+      async function stopParking(docId) {
+        clearInterval(timerId);
+        await db.collection('parked_users').doc(docId).delete().catch(() => {});
+        resetParkingUi();
+      }
+
+      (async function resumeParkingIfNeeded() {
+        const user  = firebase.auth().currentUser || {};
+        const email = user.email || getCookie('userEmail') || '';
+        const snap = await db.collection('parked_users')
+                             .where('email','==',email)
+                             .orderBy('start','desc')
+                             .limit(1).get();
+        if (snap.empty) return;
+        const d = snap.docs[0].data();
+        const startedAt = d.start.toDate();
+        const remaining = Math.floor((startedAt.getTime() + d.hours*3600000 - Date.now())/1000);
+        if (remaining > 0) startCountdown(remaining, snap.docs[0].id);
+        else snap.docs[0].ref.delete().catch(() => {});
+      })();
+
+      function resetParkingUi() {
+        parkingDiv.innerHTML = `
+          <p style="font-size:30px;margin:0;">Park your car and receive live alerts when TAPS is nearby</p><br>
+          <button id="parkButton" class="action-btn">Park</button>
+        `;
+        document.getElementById('parkButton').onclick = startParkingPrompt;
+      }
+
+      window.__startCountdown = startCountdown;
+      window.__stopParking    = stopParking;
+    })();
+  }
+}
+
+
+
+/* ────────────────────────────────────────────────────────────── *
+ *  0-A.  refreshParkUi                                           *
+ *       – asks Firebase who's signed-in (if anyone)              *
+ *       – re-renders the #parkDynamicSection accordingly         *
+ * ────────────────────────────────────────────────────────────── */
+function refreshParkUi () {
+  const user = firebase.auth().currentUser || {};
+  const loggedIn = !!user.uid && !user.isAnonymous;
+  const name = getCookie('userFullName') || user.displayName || '';
+  renderParkSection(loggedIn, name);
+}
+
+/* ────────────────────────────────────────────────────────────── *
+ *  0-B.  showScreen (NAV TABS) – **replace your old one**        *
+ *       – switches screens *and* keeps the Park tab up-to-date   *
+ * ────────────────────────────────────────────────────────────── */
+function showScreen (screenId, btn) {
+  // 1️⃣ toggle visibility
+  ['homeScreen','parkScreen','statsScreen'].forEach(id =>
+    document.getElementById(id).style.display = (id === screenId ? 'block' : 'none'));
+
+  // 2️⃣ highlight the active button
+  document.querySelectorAll('.header-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  // 3️⃣ whenever the user opens Park, rebuild its UI
+  if (screenId === 'parkScreen') refreshParkUi();
+
+  // 4️⃣ whenever the user opens Stats, update prediction time to now
+  if (screenId === 'statsScreen') {
+    setCurrentPredictionTime();
+    calculatePrediction();
+  }
+
+  // 5️⃣ whenever the user opens Home, reset the UI
+  if (screenId === 'homeScreen') resetParkUi();
+}
+
+function setCurrentPredictionTime() {
+  var now = new Date();
+  var formattedTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+  var predTime = document.getElementById('predictionTime');
+  if (predTime) {
+    predTime.value = formattedTime;
+    predTime.readOnly = false;
+    predTime.style.pointerEvents = '';
+    predTime.style.background = '';
+    predTime.style.color = '';
+  }
+}
+
+// --- Add this utility to ensure prediction always updates ---
+function setupPredictionAutoUpdate() {
+  // Wait for DOM to have the elements
+  setTimeout(function() {
+    var locationSel = document.getElementById('predictionLocation');
+    var timeInput = document.getElementById('predictionTime');
+    if (!locationSel || !timeInput) return;
+
+    // Remove previous listeners if any
+    locationSel.removeEventListener('change', calculatePrediction);
+    locationSel.addEventListener('change', calculatePrediction);
+
+    // For time input, listen to input and change events
+    timeInput.removeEventListener('input', calculatePrediction);
+    timeInput.removeEventListener('change', calculatePrediction);
+    timeInput.addEventListener('input', calculatePrediction);
+    timeInput.addEventListener('change', calculatePrediction);
+
+    // Also, observe value changes (for programmatic changes)
+    if (!timeInput._predictionObserver) {
+      var lastVal = timeInput.value;
+      timeInput._predictionObserver = setInterval(function() {
+        if (timeInput.value !== lastVal) {
+          lastVal = timeInput.value;
+          calculatePrediction();
+        }
+      }, 500);
+    }
+  }, 0);
+}
+
+// --- Patch showScreen to auto-run prediction on Park tab ---
+const _origShowScreen = window.showScreen || showScreen;
+window.showScreen = function(screenId, btn) {
+  _origShowScreen.apply(this, arguments);
+  if (screenId === 'parkScreen' || screenId === 'statsScreen') {
+    setupPredictionAutoUpdate();
+    calculatePrediction();
+  }
+};
+
+// Also run on DOMContentLoaded (for first load)
+window.addEventListener('DOMContentLoaded', function() {
+  setupPredictionAutoUpdate();
+  calculatePrediction();
+});
 

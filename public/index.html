@@ -10,11 +10,11 @@
 
 	
 <script async
-          src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD27CKLddswkn-DTg6anVo8BaRWUZJrHao&libraries=directions"
-          onload="if(typeof allSightings !== 'undefined') initMap();">
-  </script>
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD27CKLddswkn-DTg6anVo8BaRWUZJrHao"
+  onload="if(typeof allSightings !== 'undefined') initMap();">
+</script>
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css?family=Roboto:400,500,700&display=swap" rel="stylesheet">
 
 <style>
         /* Make dropdown text bold */
@@ -70,18 +70,27 @@
 
         body, html {
             overflow-x: visible; /* Allow horizontal overflow */
+            font-family: 'Roboto', sans-serif;
         }
 
+
         #report2 {
-            font-size: 18px; /* Match font size with other inputs */
-            padding: 12px 20px; /* Uniform padding */
-            background-color: #ffffff; /* A lighter shade of blue for the background */
-            /* Ensure it's full-width */
-            box-sizing: border-box; /* Include padding and border in the width */
-        
-            border: 5px solid lightblue;
-            width: 80%;
+            font-size: 18px;
+            padding: 24px 16px;
+            background-color: #ffffff;
+            box-sizing: border-box;
+            width: 90%;
+            max-width: 600px;
             border-radius: 40px;
+            margin: 0 auto 24px auto;
+            overflow: hidden;
+        }
+        @media (max-width: 600px) {
+            #report2 {
+                width: 98vw;
+                max-width: 98vw;
+                padding: 16px 4px;
+            }
         }
 
         #timeOccurred {
@@ -226,7 +235,7 @@
             /* Ensure the background covers the entire page */
             min-height: 100vh;
             /* Font settings for body text */
-            font-family: 'Rubik', sans-serif;
+            font-family: 'Roboto', sans-serif;
             margin: 0;
             padding: 0;
             display: flex;
@@ -235,27 +244,13 @@
             justify-content: center;
         }
 
-        #predictionSection {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-			color: #000000
-			font-size: 18px; /* Match font size with other inputs */
-            padding: 12px 20px; /* Uniform padding */
-            background-color: #ffffff; /* A lighter shade of blue for the background */
-            /* Ensure it's full-width */
-            box-sizing: border-box; /* Include padding and border in the width */
-            margin: 10px 0; /* Margin for spacing */
-            border: 5px solid lightblue;
-            width: 80%;
-            border-radius: 40px;
-        }
 
         #wherewhen {
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
-            gap: 10px; /* Add some spacing between the select and input elements */
+            justify-content: center;
+            gap: 10px;
         }
 
         /* Media query for mobile devices */
@@ -284,24 +279,11 @@
             }
 
             #report2 {
-                width: 95%; /* Adjust width for mobile devices */
+                width: 90%; /* Adjust width for mobile devices */
+                padding: 24px 8px; /* Slightly less horizontal padding for small screens */
             }
 			
-			#predictionSection {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-			color: #000000
-			font-size: 18px; /* Match font size with other inputs */
-            padding: 12px 20px; /* Uniform padding */
-            background-color: #ffffff; /* A lighter shade of blue for the background */
-            /* Ensure it's full-width */
-            box-sizing: border-box; /* Include padding and border in the width */
-            margin: 10px 0; /* Margin for spacing */
-            border: 5px solid lightblue;
-            width: 95%;
-            border-radius: 40px;
-        }
+			
 
 			
 			.toggleSightingsButton {
@@ -330,30 +312,13 @@
 		
 	
 #map {
-  width: 100%;
-  height: 900px;
-  margin: 20px 0;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-  
-  font-size: 18px; /* Match font size with other inputs */
-            padding: 12px 20px; /* Uniform padding */
-            background-color: #ffffff; /* A lighter shade of blue for the background */
-            /* Ensure it's full-width */
-            box-sizing: border-box; /* Include padding and border in the width */
-            margin: 10px 0; /* Margin for spacing */
-            border: 5px solid lightblue;
-            width: 90%;
-            border-radius: 40px;
-			
+  width: 90% !important;
+  height: 950px !important;
+  max-width: 90vw !important;
+  border-radius: 0 !important;
 }
 
-.map-section {
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
-}
+
 
 #locations {
   margin-bottom: 20px;
@@ -366,16 +331,76 @@
 }
 
 .gm-style-iw div {
-  font-family: 'Rubik', sans-serif;
+  font-family: 'Roboto', sans-serif;
   font-size: 14px;
   line-height: 1.4;
     }
-#parkingSection h1 {
-  font-size: 36px !important;
-  font-weight: bold;
-  margin: 0 0 10px 0;
+
+
+.recent-spot-header {
+  background: #fff;
+  border: 4px solid #6bc1fa;
+  border-radius: 24px;
+  padding: 18px 12px;
+  margin: 0 auto 12px auto;
+  width: 90%;
+
+  box-sizing: border-box;
 }
 
+
+/* Add this to the style section */
+.account-create-section {
+  width: 90%;
+  margin: 0 auto 24px auto;
+  padding: 24px 16px;
+  box-sizing: border-box;
+  border: 4px solid #6bc1fa;
+  border-radius: 24px;
+  background: #fff;
+}
+
+
+
+
+
+
+#parkingSection {
+  width: 100%;
+  margin: 0 auto 24px auto;
+
+  
+}
+
+#predictionSection {
+  width: 90%;
+  margin: 0 auto 24px auto;
+  padding: 24px 16px;
+  box-sizing: border-box;
+  border: 4px solid #6bc1fa;
+  border-radius: 24px;
+  background: #fff;
+}
+
+#predictionTime {
+  text-align: center;
+  width: 40%;
+  overflow: hidden;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin: 0 auto;
+}
+
+#exitStreetViewBtn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 70px !important;
+  width: 70% !important;
+  font-size: 1.5em !important;
+  padding: 0 !important;
+  margin: 0 auto !important;
+}
 
     </style>
 	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -465,7 +490,10 @@ input:-webkit-autofill {
   align-items: center;    /* horizontally center its children */
   text-align: center;      /* center any inline text */
   margin: 0 auto;          /* ensure the whole block is centered in its parent */
-  padding: 0;              /* reset any horizontal padding */
+  padding: 24px 16px;      /* Add horizontal and vertical padding for white space */
+  box-sizing: border-box;  /* Ensure padding is inside the border */
+  width: 90%;
+
 }
 
 
@@ -486,215 +514,280 @@ input[type="number"] {
   appearance: none;
 }
 
+/* specifically target the Street-View exit button */
+#exitStreetViewBtn {
+  height: 65px !important;
+  width: 90% !important;
+  line-height: 30px;
+  padding: 0 10px;
+  font-size: 14px;
+}
 
+
+
+
+
+.sv-go-btn {
+  height: 35px;        /* whatever height you want */
+  line-height: 30px;   /* vertically center the text */
+  padding: 0 10px;     /* left/right padding */
+  font-size: 14px;     /* adjust as desired */
+  border-radius: 4px;  /* match your other buttons */
+  background: #007bff; /* matching blue background */
+  color: #fff;         /* white text */
+  border: none;
+  cursor: pointer;
+}
+</style>
+
+<style>
+  /* Bottom Navigation Bar Styles */
+  #mainHeader {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 80px;
+    background: #fff;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    box-shadow: 0 -2px 16px rgba(0,0,0,0.12);
+    z-index: 1000;
+    padding: 0;
+    margin: 0;
+  }
+  .header-btn {
+    background: none !important;
+    border: none !important;
+    outline: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #888 !important;
+    font-size: 22px; /* Increased from 13px */
+    font-family: inherit;
+    font-weight: 700; /* Bolder */
+    margin: 0;
+    padding: 8px 0 16px 0; /* Add more padding below */
+    flex: 1 1 0;
+    height: 100%;
+    cursor: pointer;
+    border-bottom: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    transition: color 0.2s, font-weight 0.2s;
+  }
+  .header-btn svg {
+    width: 54px; /* Increased from 40px */
+    height: 54px; /* Increased from 40px */
+    margin-bottom: 4px;
+    display: block;
+    fill: #888 !important;
+    transition: fill 0.2s, font-weight 0.2s;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: none !important;
+  }
+  .header-btn.active {
+    color: #007bff !important;
+    font-weight: 900;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: none !important;
+  }
+  .header-btn.active span {
+    font-weight: 900;
+    color: #007bff !important;
+    background: none !important;
+  }
+  .header-btn.active svg {
+    fill: #007bff !important;
+    font-weight: 900;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: none !important;
+  }
+  @media (max-width: 600px) {
+    #mainHeader {
+      height: 90px; /* Increased from 70px */
+    }
+    .header-btn svg {
+      width: 40px; /* Increased from 32px */
+      height: 40px; /* Increased from 32px */
+    }
+    .header-btn {
+      font-size: 16px; /* Increased from 11px */
+      padding: 8px 0 20px 0; /* Even more padding below for mobile */
+    }
+  }
+  body {
+    padding-bottom: 90px; /* Prevent content from being hidden behind nav */
+    margin: 0;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #89CFF0, #4682B4);
+    font-family: 'Roboto', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+  .main-content {
+    width: 95vw;
+    height: 0vh; /* minus nav bar */
+    max-height: 0vh; /* minus nav bar */
+    max-width: 95vw;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    border-radius: 0;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    font-family: 'Roboto', sans-serif;
+ 
+      width: 100vw;
+      min-height: calc(90vh - 80px);
+      margin: 0 auto;
+      border-radius: 16px 16px 0 0;
+      box-shadow: 0 0 16px rgba(0,0,0,0.04);
+    }
+  
+
+
+  .inner-content.big, #report2{
+    background: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    display: block !important;
+  }
+
+
+  /* Remove extra margin/padding from h1, etc. */
+  h1, h2, h3, h4, h5, h6, p {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+  /* For mobile, make sure map and other elements are full width */
+  #map {
+    width: 90% !important;
+    max-width: 90vw !important;
+    border-radius: 0 !important;
+    margin: 0 auto !important;
+  }
+  /* Remove card look from all main sections */
+  .item {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+  /* Ensure logo is centered and not too large */
+  img[alt="logo taps ucsc tracker"] {
+    display: block;
+    margin: 0 auto 8px auto;
+    max-width: 320px;
+    height: auto;
+  }
+
+
+  
 </style>
 
   </head>
 
   <body>
-    <div class="header center">
-      <div class="half_width">
-	  <br>
-        <p> </P>
-		<br>
+    <!-- Bottom Navigation Bar -->
+    <div id="mainHeader">
+      <button class="header-btn active" id="navHome" onclick="showScreen('homeScreen', this)">
+        <svg viewBox="0 0 24 24"><path d="M3 10.75L12 4l9 6.75V19a2 2 0 0 1-2 2h-3.5a.5.5 0 0 1-.5-.5V16a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v4.5a.5.5 0 0 1-.5.5H5a2 2 0 0 1-2-2V10.75z"/></svg>
+        <span>Home</span>
+      </button>
+      <button class="header-btn" id="navPark" onclick="showScreen('parkScreen', this)">
+        <svg viewBox="0 0 24 24"><path d="M7 20V4h7a5 5 0 0 1 0 10H9v6H7zm2-8h5a3 3 0 0 0 0-6H9v6z"/></svg>
+        <span>Park</span>
+      </button>
+      <button class="header-btn" id="navStats" onclick="showScreen('statsScreen', this)">
+        <svg viewBox="0 0 24 24"><path d="M3 17v-2a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zm7-8V7a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2zm7 12v-6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z"/></svg>
+        <span>Stats</span>
+      </button>
+    </div>
+<br><br>
+    <!-- Home Screen -->
+    <div id="homeScreen" style="display:block;">
+      <div class="main-content">
+        <div class="inner-content big">
+          <img src="logo.png" alt="logo taps ucsc tracker" />
+          <div class="recent-spot-header" id="recentHeader"></div><br>
+          <div id="report2" class="map-section">
+            <div id="map"></div>
+            <div id="exitStreetView" style="text-align:center; margin-top:8px; display:none;">
+              <br>
+              <button id="exitStreetViewBtn"><h2>Exit Street View</h2></button>
+            </div>
+            <div id="locations"></div>
+            <div id="sightingsContainer" style="display:none"></div>
+            <button id="toggleSightingsButton" onclick="toggleSightingsDisplay()" style="display:none"> Show More</button>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="content gradient">
-      <!-- <h1 class="title">FORECAST</h1> -->
-		
+    <!-- Park Screen -->
+    <div id="parkScreen" style="display:none;">
+      <div class="main-content">
         <div class="inner-content big">
-      
-		  <img src="logo.png" width="270" height="200"  alt="logo taps ucsc tracker" />
-			
-			
-			
-			<div id="report2" >
-			
-			
-			<div id="accountSection" class="map-section">
+          <img src="logo.png" alt="logo taps ucsc tracker" />
+          <div id="parkDynamicSection"></div>
+        </div>
+      </div>
+    </div>
 
+    <!-- Stats Screen -->
+    <div id="statsScreen" style="display:none;">
+      <div class="main-content">
+        <div class="inner-content big">
+          <img src="logo.png" alt="logo taps ucsc tracker" />
+          <div id="predictionSection" style="display:block"><center>
+            <h1 style="font-size:5vw"><b><u> Will you get a ticket? </u></b></h1><br><br>
+            <h1 style="font-size:3vw"><b> Pick a time and location to see your chances </b></h1>
+            <div id= "wherewhen" style="display:flex; justify-content:center;">
+              <select id="predictionLocation" onchange="calculatePrediction()" style="display:flex">
+                <option value="112 CORE WEST STRUCTURE">112 CORE WEST STRUCTURE</option>
+              </select>
+              <input type="time" id="predictionTime" required readonly style="pointer-events:none; background:#eee; color:#888;">
+            </div>
+            <div id="predictionVariables" class="prediction-variables" ></div>
+            <div id="predictionResult" ></div>
+            <canvas id="hourlyCitationChart" width="500" height="300"></canvas>
+            <button class="predict-button" style="display:none" onclick="calculatePrediction()"><h2><b>View Results</b></h2></button><br>
+            <div id="devTools" style="display:none">
+              <h3>Dev Tools</h3>
+              <p id="devToolsList"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
+    
+    <script src="hello.js"></script>
 
-<br>
-  <center>
-    <h1><b><u>Create an Account</u></b></h1><br>
-    <p style="font-size:30px;margin-top:-8px;">
-      Make an account to get <b>live alerts</b> when TAPS is near your car.
-    </p><br><br><br>
-    <div id="accountFormFields"></div>
-    <button id="signUpButton" onclick="showSignUpForm()">
-      <h3>Sign&nbsp;Up</h3>
-    </button>
-    <br>
-    <button id="loginButton" onclick="showLoginForm()">
-      <h3>Log&nbsp;In</h3>
-    </button>
-  </center>
-  <br>
-</div>
+    <!-- Hidden elements for JS compatibility -->
+    <div style="display:none;">
+      <select id="collegeLocation"></select>
+      <input id="timeOccurred" type="datetime-local" />
+      <input id="predictionTime" type="time" />
+    </div>
 
-
-
-
-<div style="display: none;">
-			<center>
-			
-
-			<center>
-			
-			<h1><b><u> Report a Citation</u> </b></h1>
-			<br>
-			<input type="text" id="citationNumber" placeholder="Citation Number">
-			<br>
-			<input type="text" id="licensePlate" placeholder="License Plate" >
-			<br>
-			<p> License plate data is kept private and is only used to certify accurate citations</p>
-			
-		<select id="collegeLocation" style="display: none;">
-		<option value="COLLEGE NINE" >COLLEGE NINE</option>
-    </select>
-	
-	
-			<input type="datetime-local" id="timeOccurred" style="display: none;">
-			<br>
-	
-	
-	<h2>
-	
-	<button id="submitCitationButton" onclick="submitCitation()"><h3>Submit Citation</h3></button>
-<br>
-
-	<b>
    
-    
-	</b>
-   
-</div>
-</div>
 
-
-
-
-
-
-
-
-
-
-<br>
-
-		
-
-<div id="report2" class="map-section">
-    
-	<h1 id="recentHeader"><center>Recent Citations</center></h1>
-	<center>
-	<div id="map"></div>
-    <div id="locations"></div>
-    
-    
-    
-    
-    
-    <!-- <div id="forecastMap" class="map"></div>	-->
-    
-    <center>
-    <br>
-
-    
-    <center>	
-    <div id="sightingsContainer"style="display:none"></div>
-    <br>
-	
-	 <button id="toggleSightingsButton" onclick="toggleSightingsDisplay()"style="display:none"> Show More</button>
-    </div>
-    </div>
-    </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	
-			<!-- Add this section to your HTML where you want the prediction interface to appear -->
-<div id="predictionSection" style="display:none">
-
-<center>
-<br>
-  <h1><b><u>Will You Get A Ticket?</u></b></h1>
-
-  
-  
-
-  <br>
-  <br>
-  <center>
-
-  
-  <div id= "wherewhen" style="display:flex">
-  
-  
-  
-  <select id="predictionLocation" onchange="calculatePrediction()" style="display:flex">
-    <option value="112 CORE WEST STRUCTURE">112 CORE WEST STRUCTURE</option>
-  </select>
-
-  <input type="time" id="predictionTime" required>
-  </div>
-  <br>
-   </h1></h2></h3>
-
-
-<div id="predictionVariables" class="prediction-variables" ></div>
-
-<div id="predictionResult" ></div>
-
-<canvas id="hourlyCitationChart" width="500" height="300"></canvas>
-
-<button class="predict-button" onclick="calculatePrediction()"><h2><b>View Results</b></h2><br><br><br></button>
- 
-
-
-<br>
-
-<!-- Dev Tools section to list all citation locations -->
-<div id="devTools" style="display:none">
-  <h3>Dev Tools</h3>
-  <p id="devToolsList"></p>
-</div>
-
-<br><br><br><br>
-
-
-
-	
-	
-</div>
-
-<script src="hello.js"></script>
-	
 

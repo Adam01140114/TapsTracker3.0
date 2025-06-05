@@ -122,6 +122,42 @@ def send_alert(to_email: str, to_name: str, p_loc: str, t_loc: str, dist_ft: flo
         smtp.send_message(msg)
     dbg(f"Alert email sent → {to_email}")
 
+def send_account_confirmation_email(to_email: str, to_name: str):
+    msg = EmailMessage()
+    msg["From"] = GMAIL_USER
+    msg["To"] = to_email
+    msg["Subject"] = "TAPS Tracker Account Verified!"
+    msg.set_content(
+        f"Hey {to_name},\n\n"
+        "Congratulations on setting up your TAPS Tracker account!\n"
+        "We have verified your account and you're all good to go.\n\n"
+        "— TAPS Tracker"
+    )
+    with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+        smtp.ehlo()
+        smtp.starttls()
+        smtp.login(GMAIL_USER, GMAIL_PW)
+        smtp.send_message(msg)
+    dbg(f"Account confirmation email sent → {to_email}")
+
+def send_ticket_notification_email(to_email: str, to_name: str, citation_number: str, date_str: str, location: str):
+    msg = EmailMessage()
+    msg["From"] = GMAIL_USER
+    msg["To"] = to_email
+    msg["Subject"] = "TAPS Tracker: You just got a ticket :("
+    msg.set_content(
+        f"Hey {to_name},\n\n"
+        f"Unfortunately, your car just got ticketed recently at {location} (Citation: {citation_number}, Date: {date_str}).\n"
+        "We hate to break it to you. Keep your head up and appeal it as soon as possible!!\n\n"
+        "— TAPS Tracker"
+    )
+    with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+        smtp.ehlo()
+        smtp.starttls()
+        smtp.login(GMAIL_USER, GMAIL_PW)
+        smtp.send_message(msg)
+    dbg(f"Ticket notification email sent → {to_email}")
+
 dbg("Launching headless Chrome…")
 opts = webdriver.ChromeOptions()
 opts.add_argument("--headless")
@@ -140,11 +176,46 @@ def save_ticket(tid: str, loc: str, when: str):
     if tid.upper() in scraped:
         return
     date, clock = when.split()[:2]
+    # Check if time has AM/PM indicator
+    if len(when.split()) > 2:
+        am_pm = when.split()[2].upper()
+        # Parse hours and minutes
+        hours, minutes = map(int, clock.split(':'))
+        # Convert to 24-hour format if PM
+        if am_pm == 'PM' and hours < 12:
+            hours += 12
+        # Convert to 24-hour format if AM and hour is 12
+        elif am_pm == 'AM' and hours == 12:
+            hours = 0
+        # Format to 24-hour time string
+        clock = f"{hours:02d}{minutes:02d}"
+    else:
+        # If no AM/PM indicator, just remove the colon
+        clock = clock.replace(":", "")
+    
     m, d, y = map(int, date.split("/"))
     with SCRAPED_TXT.open("a", encoding="utf-8") as f:
-        f.write(f'"{tid.upper()},{loc},{clock.replace(":","")},{m}/{d}/{y}",\n')
+        f.write(f'"{tid.upper()},{loc},{clock},{m}/{d}/{y}",\n')
     scraped.add(tid.upper())
     dbg(f"Saved → scraped.txt : {tid},{loc}")
+    # Check if the ticket date is today and send notification
+    today = dt.datetime.now(utc_tz()).date()
+    ticket_date = dt.date(y, m, d)
+    if ticket_date == today:
+        # Find user(s) with this license plate in current_users
+        try:
+            users = db.collection("current_users").where("licensePlate", "==", tid).stream()
+            for user_doc in users:
+                user_data = user_doc.to_dict()
+                send_ticket_notification_email(
+                    user_data.get("email", ""),
+                    user_data.get("fullName", "User"),
+                    tid,
+                    f"{m}/{d}/{y}",
+                    loc
+                )
+        except Exception as e:
+            dbg(f"‼ Failed to send ticket notification email: {e}")
 
 def _extract_ticket_meta():
     try:
@@ -435,6 +506,8 @@ def precheck_new_users(col: str = "new_users"):
             if tickets:
                 update_data["tickets"] = firestore.ArrayUnion(*tickets)
             db.collection("current_users").document(uid).set(update_data, merge=True)
+            # Send confirmation email after promotion
+            send_account_confirmation_email(d.get("email", ""), d.get("fullName", "User"))
         except Exception as e:
             dbg(f"‼ Firestore write failed for {citation}: {e}")
             continue

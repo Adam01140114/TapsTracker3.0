@@ -58,7 +58,7 @@ p {
   width: 100%;
 }
 .title {
-  font-family: "Fugaz One";
+  font-family: 'Roboto', sans-serif;
   display: flex;
   justify-content: center;
   margin: 23px;
@@ -116,7 +116,7 @@ p {
   width: 100%;
 }
 .inner-content {
-  font-family: 'Bellota Text';
+  font-family: 'Roboto', sans-serif;
   margin: 5px;
   background-color: white;
   border-radius: 40px;
