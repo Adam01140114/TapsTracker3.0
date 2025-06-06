@@ -346,8 +346,8 @@ def process(plate: str, citation: str):
     except Exception as e:
         dbg(f"‼ Error processing {tid}: {e}")
         msg = str(e)
-        # If Selenium aborted by navigation or we're already scraped, treat as success
-        if "aborted by navigation" in msg or tid in scraped:
+        # If Selenium aborted by navigation, treat as success
+        if "aborted by navigation" in msg:
             return True, []
         return False, []
 
@@ -580,24 +580,45 @@ def scrape_main():
     rows = [ln.strip() for ln in MAIN_PATH.read_text("utf-8").splitlines() if ln.strip()]
     valid = []
     for ln in rows:
-        citation, plate = (p.strip() for p in ln.split(",", 1))
-        ok, _ = process(plate, citation)
-        # keep if it succeeded OR if we've already scraped that citation
-        if ok or citation in scraped:
-            valid.append(ln)
-        else:
-            dbg(f"Removed invalid entry from main.txt: {ln}")
-            # Append to validate.txt
+        try:
+            citation, plate = (p.strip() for p in ln.split(",", 1))
+            ok, _ = process(plate, citation)
+            # Only keep if it succeeded
+            if ok:
+                valid.append(ln)
+            else:
+                dbg(f"Removed invalid entry from main.txt: {ln}")
+                with VALIDATE_PATH.open("a", encoding="utf-8") as vf:
+                    vf.write(ln + "\n")
+        except Exception as e:
+            dbg(f"‼ Exception processing line: {ln} — {e}")
+            dbg(f"Removed invalid entry from main.txt due to exception: {ln}")
             with VALIDATE_PATH.open("a", encoding="utf-8") as vf:
                 vf.write(ln + "\n")
+            # Do NOT add to valid
     _rewrite_main(valid)
 
+def deduplicate_scraped_txt():
+    if not SCRAPED_TXT.exists():
+        return
+    lines = [ln for ln in SCRAPED_TXT.read_text("utf-8").splitlines() if ln.strip()]
+    seen = set()
+    deduped = []
+    for ln in lines:
+        # Extract citation number (first field, before first comma, strip quotes and spaces)
+        citation = ln.split(",", 1)[0].strip('"').strip().upper()
+        if citation not in seen:
+            seen.add(citation)
+            deduped.append(ln)
+    SCRAPED_TXT.write_text("\n".join(deduped) + ("\n" if deduped else ""), encoding="utf-8")
+    dbg(f"Deduplicated scraped.txt → {len(deduped)} unique tickets")
 
 def run_cycle():
     check_parked_users()
     precheck_new_users()
     transfer_firestore_to_main()
     scrape_main()
+    deduplicate_scraped_txt()
     dbg("Done – scraping cycle complete")
 
     # pick the right CLI on Windows vs. others
