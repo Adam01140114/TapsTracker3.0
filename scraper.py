@@ -569,9 +569,12 @@ def _rewrite_main(rows):
             seen.add(key)
             unique_rows.append(row)
     tmp = MAIN_PATH.with_suffix(".tmp")
-    tmp.write_text("\n".join(unique_rows) + ("\n" if unique_rows else ""))
-    tmp.replace(MAIN_PATH)
-    dbg(f"Re-wrote main.txt → kept {len(unique_rows)} valid rows (deduplicated)")
+    try:
+        tmp.write_text("\n".join(unique_rows) + ("\n" if unique_rows else ""))
+        tmp.replace(MAIN_PATH)
+        dbg(f"Re-wrote main.txt → kept {len(unique_rows)} valid rows (deduplicated)")
+    except Exception as e:
+        dbg(f"‼ Failed to update main.txt: {e}")
 
 def scrape_main():
     if not MAIN_PATH.exists():
@@ -596,6 +599,7 @@ def scrape_main():
             with VALIDATE_PATH.open("a", encoding="utf-8") as vf:
                 vf.write(ln + "\n")
             # Do NOT add to valid
+    dbg(f"Valid lines to keep in main.txt: {valid}")
     _rewrite_main(valid)
 
 def deduplicate_scraped_txt():

@@ -1553,20 +1553,38 @@ function showLoginForm() {
   document.getElementById('accountFormFields').innerHTML = `
     <input type="email" id="loginEmail" placeholder="Email" style="margin-bottom:10px;width:80%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br>
     <input type="password" id="loginPassword" placeholder="Password" style="margin-bottom:10px;width:80%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br>
+    <a href="#" id="forgotPasswordLink" style="font-size:16px;display:inline-block;margin:10px 0 0 0;">Forgot Password?</a>
+    <div id="forgotPasswordSection" style="display:none;margin-top:10px;"></div>
   `;
   document.getElementById('signUpButton').style.display = 'none';
   document.getElementById('loginButton').innerHTML = '<h3>Log&nbsp;In</h3>';
   document.getElementById('loginButton').onclick = async function() {
-    // This wraps submitLogin to ensure the back button is removed after successful login
     try {
       await submitLogin();
-      // The back button will be removed by the onAuthStateChanged listener
     } catch (error) {
       console.error("Error in login:", error);
     }
   };
-  
-  // Add a back button if it doesn't exist
+  document.getElementById('forgotPasswordLink').onclick = function(e) {
+    e.preventDefault();
+    const section = document.getElementById('forgotPasswordSection');
+    section.innerHTML = `
+      <input type="email" id="resetEmail" placeholder="Enter your email" style="margin-bottom:10px;width:80%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br>
+      <button id="sendResetBtn" class="action-btn" style="width:160px;height:40px;font-size:16px;">Send Reset Email</button>
+    `;
+    section.style.display = '';
+    document.getElementById('sendResetBtn').onclick = async function() {
+      const email = document.getElementById('resetEmail').value.trim();
+      if (!email) return alert('Please enter your email.');
+      try {
+        await firebase.auth().sendPasswordResetEmail(email);
+        alert('Password reset email sent!');
+        section.style.display = 'none';
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    };
+  };
   if (!document.getElementById('backButton')) {
     const backBtn = document.createElement('button');
     backBtn.id = 'backButton';
@@ -1580,62 +1598,113 @@ function showLoginForm() {
   }
 }
 
+function showSettingsPopup() {
+  const user = firebase.auth().currentUser;
+  if (!user) return;
+  db.collection('users').doc(user.uid).get().then(snap => {
+    const profile = snap.exists ? snap.data() : {};
+    const [firstName, ...lastArr] = (profile.fullName || '').split(' ');
+    const lastName = lastArr.join(' ');
+    const email = user.email || '';
+    const licensePlate = profile.licensePlate || '';
+    let modal = document.createElement('div');
+    modal.id = 'settingsModal';
+    modal.style = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    modal.innerHTML = `
+      <div style="background:#fff;padding:32px 24px;border-radius:24px;min-width:320px;max-width:90vw;box-shadow:0 4px 32px rgba(0,0,0,0.15);display:flex;flex-direction:column;align-items:center;">
+        <h2 style="margin-bottom:24px;">User Settings</h2>
+        <input type="text" id="settingsFirstName" placeholder="First Name" value="${firstName||''}" style="margin-bottom:10px;width:90%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br>
+        <input type="text" id="settingsLastName" placeholder="Last Name" value="${lastName||''}" style="margin-bottom:10px;width:90%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br>
+        <input type="email" id="settingsEmail" placeholder="Email" value="${email}" style="margin-bottom:10px;width:90%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br>
+        <input type="text" id="settingsLicensePlate" placeholder="License Plate" value="${licensePlate}" style="margin-bottom:20px;width:90%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br>
+        <button id="saveSettingsBtn" class="action-btn" style="width:180px;height:45px;font-size:3vw;margin-bottom:16px;">Save</button>
+        <button id="deleteAccountBtn" class="action-btn" style="width:180px;height:45px;font-size:3vw;background:#e74c3c;">Delete Account</button>
+        <button id="closeSettingsBtn" class="action-btn" style="width:180px;height:45px;font-size:3vw;margin-top:18px;background:#aaa;">Close</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    document.getElementById('closeSettingsBtn').onclick = () => modal.remove();
+    document.getElementById('saveSettingsBtn').onclick = async () => {
+      const newFirst = document.getElementById('settingsFirstName').value.trim();
+      const newLast = document.getElementById('settingsLastName').value.trim();
+      const newEmail = document.getElementById('settingsEmail').value.trim();
+      const newPlate = document.getElementById('settingsLicensePlate').value.trim();
+      if (!newFirst || !newLast || !newEmail || !newPlate) return alert('Please fill in all fields.');
+      try {
+        await db.collection('users').doc(user.uid).update({
+          fullName: `${toTitleCase(newFirst)} ${toTitleCase(newLast)}`,
+          email: newEmail,
+          licensePlate: newPlate
+        });
+        if (user.email !== newEmail) await user.updateEmail(newEmail);
+        const curSnap = await db.collection('current_users').where('email','==',user.email).limit(1).get();
+        if (!curSnap.empty) {
+          await curSnap.docs[0].ref.update({
+            email: newEmail,
+            fullName: `${toTitleCase(newFirst)} ${toTitleCase(newLast)}`,
+            licensePlate: newPlate
+          });
+        }
+        alert('Settings saved!');
+        modal.remove();
+        location.reload();
+      } catch (err) {
+        alert('Error saving settings: ' + err.message);
+      }
+    };
+    document.getElementById('deleteAccountBtn').onclick = async () => {
+      if (!confirm('Are you sure? This cannot be undone.')) return;
+      try {
+        const curSnap = await db.collection('current_users').where('email','==',user.email).limit(1).get();
+        let userData = null;
+        if (!curSnap.empty) {
+          userData = curSnap.docs[0].data();
+          await db.collection('deleted_users').add(userData);
+          await curSnap.docs[0].ref.delete();
+        }
+        await db.collection('users').doc(user.uid).delete();
+        await user.delete();
+        alert('Account deleted.');
+        logout();
+        setTimeout(() => window.location.reload(), 500);
+      } catch (err) {
+        alert('Error deleting account: ' + err.message);
+      }
+    };
+  });
+}
 
+// Patch insertSettingsButtonAbove to always use font-size:3vw
+function insertSettingsButtonAbove(logoutBtn) {
+  if (!logoutBtn || document.getElementById('settingsButton')) return;
+  const settingsBtn = document.createElement('button');
+  settingsBtn.id = 'settingsButton';
+  settingsBtn.textContent = 'Settings';
+  settingsBtn.className = 'action-btn';
+  settingsBtn.style.cssText = 'margin-top:20px;font-size:3vw;';
+  settingsBtn.onclick = showSettingsPopup;
+  logoutBtn.parentNode.insertBefore(settingsBtn, logoutBtn);
+}
 
-
-
-
-// On page load, if user is logged in with Firebase, fetch their info
-window.addEventListener('DOMContentLoaded', async function() {
-
-  // Show setup prompt
-  if (setupPrompt) {
-    setupPrompt.style.display = '';
-    setupPrompt.innerHTML = 
-  '<br><br><br><br>To finish setting up your account, please enter one of your citations';
-
-  }
-
-  // Show citation number input and submit button
-  formFields.innerHTML = `
-    <input type="text" id="citationNumberSetup" placeholder="Citation Number (" style="margin-bottom:10px;width:80%;height:40px;font-size:18px;border-radius:20px;text-align:center;"><br>
-    <button id="submitCitationSetup" style="margin-top:10px;width:200px;height:50px;font-size:20px;border-radius:20px;">Submit</button>
-  `;
-  document.getElementById('signUpButton').style.display = 'none';
-  document.getElementById('loginButton').style.display = 'none';
-  document.getElementById('submitCitationSetup').onclick = async () => {
-  const citationNumber = document.getElementById('citationNumberSetup').value.trim();
-  if (!citationNumber) {
-    alert('Please enter a citation number.');
-    return;
-  }
-
-  /* ──  ✱  Immediately swap UI to a "hang-tight" message  ─────────── */
-  if (setupPrompt) {
-    setupPrompt.innerHTML = 'Please give us a moment to verify your account…';
-  }
-  document.getElementById('citationNumberSetup').remove();   // or .style.display = 'none';
-  document.getElementById('submitCitationSetup').remove();    // ditto
-
-  /*  store the request and wait for the back-end to confirm later */
-  const email = firebase.auth().currentUser?.email || getCookie('userEmail') || '';
-  try {
-    await db.collection('new_users').add({
-      licensePlate,
-      citationNumber,
-      fullName,
-      email,
-      timestamp: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    /* when your verification webhook runs, it should flip the user's
-       "finishedSetup" flag and the normal auth listener will rebuild the
-       section without the prompt. */
-  } catch (e) {
-    alert('Error submitting citation: ' + e.message);
-    // optional: roll back the UI if you'd like
-  }
+// Fix Park button in Park section to always work
+// After rendering Park section, always set onclick for parkButton
+const origRenderParkSection = renderParkSection;
+renderParkSection = function(isLoggedIn, userName) {
+  origRenderParkSection.apply(this, arguments);
+  setTimeout(() => {
+    const parkBtn = document.getElementById('parkButton');
+    if (parkBtn) {
+      // Find the correct startParkingPrompt function in scope
+      let parkingDiv = document.getElementById('parkingSection');
+      if (parkingDiv && typeof startParkingPrompt === 'function') {
+        parkBtn.onclick = startParkingPrompt;
+      } else {
+        // fallback: reload UI
+        parkBtn.onclick = function() { location.reload(); };
+      }
+    }
+  }, 0);
 };
-})
 
 
 
@@ -1703,20 +1772,24 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
         document.getElementById('submitCitationSetup').onclick = submitCitationSetup;
         if (!document.getElementById('logoutButton')) {
           const lo = document.createElement('button');
-          lo.id          = 'logoutButton';
+          lo.id = 'logoutButton';
           lo.textContent = 'Log Out';
-          lo.style.cssText = 'margin-top:40px;width:200px;height:50px;font-size:20px;border-radius:20px;';
-          lo.onclick     = logout;
+          lo.className = 'action-btn';
+          lo.style.cssText = 'margin-top:40px;';
+          lo.onclick = logout;
           formFields.appendChild(lo);
+          insertSettingsButtonAbove(lo);
         }
       };
       if (!document.getElementById('logoutButton')) {
         const lo = document.createElement('button');
-        lo.id          = 'logoutButton';
+        lo.id = 'logoutButton';
         lo.textContent = 'Log Out';
-        lo.style.cssText = 'margin-top:40px;width:200px;height:50px;font-size:20px;border-radius:20px;';
-        lo.onclick     = logout;
+        lo.className = 'action-btn';
+        lo.style.cssText = 'margin-top:40px;';
+        lo.onclick = logout;
         formFields.appendChild(lo);
+        insertSettingsButtonAbove(lo);
       }
       return;
     }
@@ -1726,11 +1799,13 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
     formFields.innerHTML      = '';
     if (!document.getElementById('logoutButton')) {
       const lo = document.createElement('button');
-      lo.id          = 'logoutButton';
+      lo.id = 'logoutButton';
       lo.textContent = 'Log Out';
-      lo.style.cssText = 'margin-top:40px;width:200px;height:50px;font-size:20px;border-radius:20px;';
-      lo.onclick     = logout;
+      lo.className = 'action-btn';
+      lo.style.cssText = 'margin-top:40px;';
+      lo.onclick = logout;
       formFields.appendChild(lo);
+      insertSettingsButtonAbove(lo);
     }
     return;
   }
@@ -1760,11 +1835,13 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
     document.getElementById('submitCitationSetup').onclick = submitCitationSetup;
     if (!document.getElementById('logoutButton')) {
       const lo = document.createElement('button');
-      lo.id          = 'logoutButton';
+      lo.id = 'logoutButton';
       lo.textContent = 'Log Out';
-      lo.style.cssText = 'margin-top:40px;width:200px;height:50px;font-size:20px;border-radius:20px;';
-      lo.onclick     = logout;
+      lo.className = 'action-btn';
+      lo.style.cssText = 'margin-top:40px;';
+      lo.onclick = logout;
       formFields.appendChild(lo);
+      insertSettingsButtonAbove(lo);
     }
     return;
   }
@@ -1775,7 +1852,7 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
       <p style="font-size:30px;margin:6px 0; font-weight:normal;"><br>
         Park your car and receive live alerts when TAPS is nearby
       </p><br><br>
-      <button id="parkButton" class="action-btn">Park</button>
+      <button id="parkButton" class="action-btn" style="font-size:3vw">Park</button>
     </div><br>
     <div id="userTicketsHeader" class="tickets-head"></div>
     <div id="userTicketsContainer"></div>
@@ -1784,22 +1861,21 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
   (function initParkingBlock() {
     const parkingDiv = document.getElementById('parkingSection');
     const parkBtn    = document.getElementById('parkButton');
-    parkBtn.onclick  = startParkingPrompt;
-
     function startParkingPrompt() {
       parkingDiv.innerHTML = `
-	  
         <label><h1>Choose your location</h1></label>
         <select id="parkLocation" style="width:80%;height:50px;margin:6px 0;text-align-last:center;border-radius:20px;font-size:22px;"></select><br><br>
         <label><h1>For how many hours?</h1></label>
         <input type="number" id="parkHours" min="1" max="24" value="2" style="width:120px;height:40px;font-size:22px;text-align:center;border-radius:20px;margin:6px 0;"><br><br>
-        <br><button id="confirmPark" class="action-btn">Park</button><br>
-        <button id="cancelPark" class="action-btn">Cancel</button>
+        <br><button id="confirmPark" class="action-btn" style="font-size:3vw">Park</button><br>
+        <button id="cancelPark" class="action-btn" style="font-size:3vw">Cancel</button>
       `;
       populateParkDropdown();
       document.getElementById('confirmPark').onclick = confirmParking;
       document.getElementById('cancelPark').onclick  = resetParkingUi;
     }
+    window.startParkingPrompt = startParkingPrompt;
+    if (parkBtn) parkBtn.onclick = startParkingPrompt;
 
     async function confirmParking() {
       const loc   = document.getElementById('parkLocation').value;
@@ -1870,7 +1946,7 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
     function resetParkingUi() {
       parkingDiv.innerHTML = `
         <p style="font-size:30px;margin:0;">Park your car and receive live alerts when TAPS is nearby</p><br>
-        <button id="parkButton" class="action-btn">Park</button>
+        <button id="parkButton" class="action-btn" style="font-size:3vw">Park</button>
       `;
       document.getElementById('parkButton').onclick = startParkingPrompt;
     }
@@ -1883,11 +1959,13 @@ async function showAccountSection(fullName, licensePlate, finishedSetup = '') {
 
   if (!document.getElementById('logoutButton')) {
     const lo = document.createElement('button');
-    lo.id          = 'logoutButton';
+    lo.id = 'logoutButton';
     lo.textContent = 'Log Out';
-    lo.style.cssText = 'margin-top:40px;width:200px;height:50px;font-size:20px;border-radius:20px;';
-    lo.onclick     = logout;
+    lo.className = 'action-btn';
+    lo.style.cssText = 'margin-top:40px;';
+    lo.onclick = logout;
     formFields.appendChild(lo);
+    insertSettingsButtonAbove(lo);
   }
 }
 
@@ -1926,7 +2004,6 @@ function renderParkSection(isLoggedIn, userName) {
       </div>
     `;
   } else {
-    // Show the initial Park button
     parkSection.innerHTML = `
       <div id="accountSection"  style="border: 4px solid #6bc1fa; border-radius: 24px; padding: 24px 16px; background: #fff; box-sizing: border-box; width: 90%; margin: 0 auto 24px auto;">
         <h1  style="font-size:5vw"><b>Welcome, <u>${userName}</u></b></h1>
@@ -1935,114 +2012,22 @@ function renderParkSection(isLoggedIn, userName) {
           <p style="font-size:30px;margin:6px 0; font-weight:normal;"><br>
             Park your car and receive live alerts when TAPS is nearby
           </p><br><br>
-          <button id="parkButton" class="action-btn">Park</button>
+          <button id="parkButton" class="action-btn" style="font-size:3vw">Park</button>
         </div>
         <div style="display:flex; flex-direction:column; align-items:center; gap:16px; margin-top:32px;">
-          <br><button class="action-btn" onclick="logout()" style="font-size:3vw">Log Out</button><br>
+          <br><button id="logoutButton" class="action-btn" onclick="logout()" style="font-size:3vw">Log Out</button><br>
         </div>
       </div>
     `;
-
-    // Attach the full dynamic parking UI logic
-    (function initParkingBlock() {
-      const parkingDiv = document.getElementById('parkingSection');
-      const parkBtn    = document.getElementById('parkButton');
-      if (parkBtn) parkBtn.onclick  = startParkingPrompt;
-
-      function startParkingPrompt() {
-        parkingDiv.innerHTML = `
-          <label><h1>Choose your location</h1></label>
-          <select id="parkLocation" style="width:80%;height:50px;margin:6px 0;text-align-last:center;border-radius:20px;font-size:22px;"></select><br><br>
-          <label><h1>For how many hours?</h1></label>
-          <input type="number" id="parkHours" min="1" max="24" value="2" style="width:120px;height:40px;font-size:22px;text-align:center;border-radius:20px;margin:6px 0;"><br><br>
-          <br><button id="confirmPark" class="action-btn">Park</button><br>
-          <button id="cancelPark" class="action-btn">Cancel</button>
-        `;
-        populateParkDropdown();
-        document.getElementById('confirmPark').onclick = confirmParking;
-        document.getElementById('cancelPark').onclick  = resetParkingUi;
+    // Insert settings button above logout in Park section
+    setTimeout(() => {
+      const logoutBtn = document.getElementById('logoutButton');
+      if (logoutBtn) insertSettingsButtonAbove(logoutBtn);
+      const parkBtn = document.getElementById('parkButton');
+      if (parkBtn && typeof window.startParkingPrompt === 'function') {
+        parkBtn.onclick = window.startParkingPrompt;
       }
-
-      async function confirmParking() {
-        const loc   = document.getElementById('parkLocation').value;
-        const hours = parseInt(document.getElementById('parkHours').value, 10);
-        if (!hours || hours < 1) return alert('Enter a valid number of hours');
-        const name  = getCookie('userFullName') || '';
-        const user  = firebase.auth().currentUser || {};
-        const email = user.email || getCookie('userEmail') || '';
-        if (loc === '__CURRENT_LOCATION__') {
-          if (!navigator.geolocation) return alert('Geolocation not supported.');
-          return navigator.geolocation.getCurrentPosition(async pos => {
-            const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-            const doc = await db.collection('parked_users').add({
-              email, fullName: name, location: 'Current Location', coords, hours,
-              start: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            startCountdown(hours * 3600, doc.id);
-          }, err => alert('Location error: ' + err.message), { enableHighAccuracy: true, maximumAge: 10000 });
-        }
-        const doc = await db.collection('parked_users').add({
-          email, fullName: name, location: loc, hours,
-          start: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        startCountdown(hours * 3600, doc.id);
-      }
-
-      let timerId;
-      function startCountdown(seconds, docId) {
-        parkingDiv.innerHTML = `
-           <div id="scan" ><br><br>
-        <p style="font-size:30px;margin:6px 0;"><b>Scanning for TAPS</b></p><br>
-        <div id="countdown" style="font-size:30px;margin:6px 0;"></div>
-        <br><p style="font-size:30px;margin:6px 0;"><b>Check your email for live alerts</b></p><br>
-        <button id="stopPark" class="action-btn" style="font-size:3vw">Stop</button></div><br><br>
-      `;
-        updateCountdown(seconds);
-        timerId = setInterval(() => {
-          seconds-- <= 0 ? stopParking(docId) : updateCountdown(seconds);
-        }, 1000);
-        document.getElementById('stopPark').onclick = () => stopParking(docId);
-      }
-
-      function updateCountdown(sec) {
-        const h = Math.floor(sec / 3600);
-        const m = Math.floor((sec % 3600) / 60).toString().padStart(2,'0');
-        const s = (sec % 60).toString().padStart(2,'0');
-        document.getElementById('countdown').textContent = `${h}:${m}:${s}`;
-      }
-
-      async function stopParking(docId) {
-        clearInterval(timerId);
-        await db.collection('parked_users').doc(docId).delete().catch(() => {});
-        resetParkingUi();
-      }
-
-      (async function resumeParkingIfNeeded() {
-        const user  = firebase.auth().currentUser || {};
-        const email = user.email || getCookie('userEmail') || '';
-        const snap = await db.collection('parked_users')
-                             .where('email','==',email)
-                             .orderBy('start','desc')
-                             .limit(1).get();
-        if (snap.empty) return;
-        const d = snap.docs[0].data();
-        const startedAt = d.start.toDate();
-        const remaining = Math.floor((startedAt.getTime() + d.hours*3600000 - Date.now())/1000);
-        if (remaining > 0) startCountdown(remaining, snap.docs[0].id);
-        else snap.docs[0].ref.delete().catch(() => {});
-      })();
-
-      function resetParkingUi() {
-        parkingDiv.innerHTML = `
-          <p style="font-size:30px;margin:0;">Park your car and receive live alerts when TAPS is nearby</p><br>
-          <button id="parkButton" class="action-btn">Park</button>
-        `;
-        document.getElementById('parkButton').onclick = startParkingPrompt;
-      }
-
-      window.__startCountdown = startCountdown;
-      window.__stopParking    = stopParking;
-    })();
+    }, 0);
   }
 }
 
